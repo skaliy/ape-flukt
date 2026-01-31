@@ -745,7 +745,7 @@ function drawGameOver() {
         gameState.inputBox = { x: boxX, y: boxY, width: boxWidth, height: boxHeight };
 
         // Name text or placeholder
-        const displayName = gameState.playerNameInput || LeaderboardManager.playerName || '';
+        const displayName = gameState.playerNameInput;
         ctx.font = `bold ${Math.max(16, 20 * s)}px Arial`;
         ctx.textAlign = 'center';
 
