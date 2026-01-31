@@ -1067,9 +1067,9 @@ canvas.addEventListener('click', (e) => {
             submitScoreWithName();
             return;
         }
-        // Clicking the input box on mobile opens prompt
+        // Clicking the input box on mobile focuses hidden input to trigger keyboard
         if (touch.isMobile && isInsideButton(x, y, gameState.inputBox)) {
-            promptForName();
+            focusMobileNameInput();
             return;
         }
     }
@@ -1118,9 +1118,9 @@ function handleInput() {
                 gameState.status = 'menu';
                 break;
             case 'enterName':
-                // On mobile, trigger the prompt
+                // On mobile, focus the hidden input to trigger keyboard
                 if (touch.isMobile) {
-                    promptForName();
+                    focusMobileNameInput();
                 }
                 // On desktop, Enter key is handled separately
                 break;
@@ -1156,17 +1156,48 @@ function setupNameInput() {
     });
 }
 
-// Mobile prompt for name input
-function promptForName() {
-    const name = prompt('Skriv navn for toppliste:', gameState.playerNameInput || LeaderboardManager.playerName || '');
-    if (name !== null) {
-        gameState.playerNameInput = name.substring(0, 20);
-        submitScoreWithName();
-    } else {
-        // User cancelled, submit as Anonymous
-        gameState.playerNameInput = '';
-        submitScoreWithName();
-    }
+// Mobile name input handling using hidden input element
+const mobileNameInput = document.getElementById('mobileNameInput');
+
+// Focus the hidden input to trigger mobile keyboard
+function focusMobileNameInput() {
+    if (!mobileNameInput) return;
+
+    // Set current value
+    mobileNameInput.value = gameState.playerNameInput || LeaderboardManager.playerName || '';
+
+    // Position it roughly where the visual input is (helps with some mobile browsers)
+    mobileNameInput.style.position = 'absolute';
+    mobileNameInput.style.left = '50%';
+    mobileNameInput.style.top = '50%';
+    mobileNameInput.style.opacity = '0';
+    mobileNameInput.style.pointerEvents = 'auto';
+
+    // Focus to trigger keyboard
+    mobileNameInput.focus();
+}
+
+// Sync hidden input with game state
+if (mobileNameInput) {
+    mobileNameInput.addEventListener('input', (e) => {
+        if (gameState.status === 'enterName') {
+            gameState.playerNameInput = e.target.value.substring(0, 20);
+        }
+    });
+
+    // Handle Enter key on mobile keyboard
+    mobileNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && gameState.status === 'enterName') {
+            e.preventDefault();
+            mobileNameInput.blur();
+            submitScoreWithName();
+        }
+    });
+
+    // When input loses focus, hide it again
+    mobileNameInput.addEventListener('blur', () => {
+        mobileNameInput.style.pointerEvents = 'none';
+    });
 }
 
 async function submitScoreWithName() {
