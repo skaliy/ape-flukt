@@ -587,33 +587,12 @@ function drawMenu() {
         ctx.fillText(`🏆 Rekord: ${gameState.highScore}`, canvas.width / 2, canvas.height * (portrait ? 0.54 : 0.72));
     }
 
-    // Leaderboard button
-    const btnWidth = 160 * s;
-    const btnHeight = 36 * s;
-    const btnX = (canvas.width - btnWidth) / 2;
-    const btnY = canvas.height * (portrait ? 0.58 : 0.76);
-
-    // Store button position for click detection
-    gameState.leaderboardBtn = { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
-
-    ctx.fillStyle = 'rgba(135, 206, 235, 0.3)';
-    ctx.beginPath();
-    ctx.roundRect(btnX, btnY, btnWidth, btnHeight, 8 * s);
-    ctx.fill();
-    ctx.strokeStyle = '#87CEEB';
-    ctx.lineWidth = 2 * s;
-    ctx.stroke();
-
-    ctx.font = `bold ${Math.max(12, (portrait ? 14 : 16) * s)}px Arial`;
-    ctx.fillStyle = '#87CEEB';
-    ctx.fillText('🏆 Toppliste', canvas.width / 2, btnY + btnHeight * 0.65);
-
     // Start prompt
     ctx.font = `bold ${promptSize}px Arial`;
     ctx.fillStyle = '#4CAF50';
     const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
     ctx.globalAlpha = pulse;
-    ctx.fillText(touch.isMobile ? 'Trykk for å starte' : 'Trykk SPACE for å starte', canvas.width / 2, canvas.height * (portrait ? 0.68 : 0.86));
+    ctx.fillText(touch.isMobile ? 'Trykk for å starte' : 'Trykk SPACE for å starte', canvas.width / 2, canvas.height * (portrait ? 0.62 : 0.82));
     ctx.globalAlpha = 1;
 
     ctx.shadowBlur = 0;
@@ -838,10 +817,6 @@ function drawGameOver() {
     ctx.globalAlpha = pulse;
     if (gameState.status !== 'enterName') {
         ctx.fillText(touch.isMobile ? 'Trykk for å prøve igjen' : 'Trykk SPACE for å prøve igjen', canvas.width / 2, canvas.height * 0.80);
-        ctx.globalAlpha = 0.7;
-        ctx.font = `${Math.max(11, 14 * s)}px Arial`;
-        ctx.fillStyle = '#87CEEB';
-        ctx.fillText('L = Toppliste', canvas.width / 2, canvas.height * 0.87);
     }
     ctx.globalAlpha = 1;
 }
@@ -1047,14 +1022,6 @@ canvas.addEventListener('click', (e) => {
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
 
-    // Menu: leaderboard button
-    if (gameState.status === 'menu') {
-        if (isInsideButton(x, y, gameState.leaderboardBtn)) {
-            gameState.status = 'leaderboard';
-            LeaderboardManager.fetchScores();
-            return;
-        }
-    }
 
     // Name entry: submit and skip buttons
     if (gameState.status === 'enterName') {
@@ -1082,21 +1049,8 @@ canvas.addEventListener('click', (e) => {
 
 // Handle space key for state transitions and bombs
 let spaceWasPressed = false;
-let lKeyWasPressed = false;
 
 function handleInput() {
-    // L key for leaderboard
-    if (keys.l && !lKeyWasPressed) {
-        lKeyWasPressed = true;
-        if (gameState.status === 'menu' || gameState.status === 'gameover') {
-            gameState.status = 'leaderboard';
-            LeaderboardManager.fetchScores();
-        }
-    }
-    if (!keys.l) {
-        lKeyWasPressed = false;
-    }
-
     if (keys.space && !spaceWasPressed) {
         spaceWasPressed = true;
         switch (gameState.status) {
@@ -1115,7 +1069,7 @@ function handleInput() {
                 gameState.submittedRank = null;
                 break;
             case 'leaderboard':
-                gameState.status = 'menu';
+                startGame();
                 break;
             case 'enterName':
                 // On mobile, focus the hidden input to trigger keyboard
