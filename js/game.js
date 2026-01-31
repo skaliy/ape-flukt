@@ -1054,8 +1054,9 @@ function handleButtonClick(clientX, clientY) {
             return true;
         }
         if (isInsideButton(x, y, gameState.skipBtn)) {
-            gameState.playerNameInput = '';
-            submitScoreWithName();
+            // Skip without submitting score - go straight to leaderboard
+            gameState.status = 'leaderboard';
+            LeaderboardManager.fetchScores();
             return true;
         }
         // Clicking the input box focuses hidden input to trigger keyboard
@@ -1139,9 +1140,9 @@ function setupNameInput() {
             submitScoreWithName();
             e.preventDefault();
         } else if (e.key === 'Escape') {
-            // Skip name entry, submit as Anonymous
-            gameState.playerNameInput = '';
-            submitScoreWithName();
+            // Skip without submitting score
+            gameState.status = 'leaderboard';
+            LeaderboardManager.fetchScores();
             e.preventDefault();
         } else if (e.key === 'Backspace') {
             gameState.playerNameInput = gameState.playerNameInput.slice(0, -1);
