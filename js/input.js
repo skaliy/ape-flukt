@@ -112,10 +112,8 @@ gameCanvas.addEventListener('touchstart', (e) => {
     // Also activate space for menu/restart (only on first tap, not double tap)
     // Don't trigger space during name entry or menu (buttons handle those)
     if (!touch.doubleTap && typeof gameState !== 'undefined') {
-        // Skip space trigger on menu (leaderboard button handles clicks)
         // Skip space trigger on enterName (submit/skip buttons handle it)
-        // Skip space trigger on leaderboard (handled by click)
-        const skipStates = ['enterName', 'menu', 'leaderboard'];
+        const skipStates = ['enterName'];
         if (!skipStates.includes(gameState.status)) {
             keys.space = true;
             setTimeout(() => { keys.space = false; }, 100);
