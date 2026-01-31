@@ -27,7 +27,9 @@ const touch = {
     currentX: 0,
     currentY: 0,
     isSprinting: false,
-    isMobile: false
+    isMobile: false,
+    lastTapTime: 0,
+    doubleTap: false
 };
 
 // Detect mobile device
@@ -82,6 +84,16 @@ gameCanvas.addEventListener('touchstart', (e) => {
     const scaleX = gameCanvas.width / rect.width;
     const scaleY = gameCanvas.height / rect.height;
 
+    // Detect double-tap for bomb placement
+    const now = Date.now();
+    if (now - touch.lastTapTime < 300) {
+        touch.doubleTap = true;
+        // Trigger space key for bomb (will be handled by game.js)
+        keys.space = true;
+        setTimeout(() => { keys.space = false; }, 100);
+    }
+    touch.lastTapTime = now;
+
     for (let i = 0; i < e.touches.length; i++) {
         const touchPoint = e.touches[i];
         const x = (touchPoint.clientX - rect.left) * scaleX;
@@ -96,9 +108,12 @@ gameCanvas.addEventListener('touchstart', (e) => {
         touch.currentY = y;
     }
 
-    // Also activate space for menu/restart
-    keys.space = true;
-    setTimeout(() => { keys.space = false; }, 100);
+    // Also activate space for menu/restart (only on first tap, not double tap)
+    if (!touch.doubleTap) {
+        keys.space = true;
+        setTimeout(() => { keys.space = false; }, 100);
+    }
+    touch.doubleTap = false;
 }, { passive: false });
 
 gameCanvas.addEventListener('touchmove', (e) => {

@@ -287,6 +287,107 @@ class Banana {
     }
 }
 
+// Bomb class
+class Bomb {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.timer = 90; // 1.5 seconds at 60fps
+        this.exploded = false;
+        this.explosionTimer = 0;
+        this.explosionRadius = 120;
+        this.baseRadius = 18;
+    }
+
+    get radius() {
+        return this.baseRadius * (window.gameScale || 1);
+    }
+
+    get scaledExplosionRadius() {
+        return this.explosionRadius * (window.gameScale || 1);
+    }
+
+    update() {
+        if (this.exploded) {
+            this.explosionTimer--;
+            return this.explosionTimer > 0;
+        }
+
+        this.timer--;
+        if (this.timer <= 0) {
+            this.exploded = true;
+            this.explosionTimer = 30; // Explosion lasts 0.5 seconds
+        }
+        return true;
+    }
+
+    // Check if explosion hits a troll
+    hitsEntity(entity) {
+        if (!this.exploded) return false;
+        const dx = entity.x - this.x;
+        const dy = entity.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance < this.scaledExplosionRadius + entity.radius;
+    }
+
+    draw(ctx) {
+        const s = window.gameScale || 1;
+
+        if (this.exploded) {
+            // Draw explosion
+            const progress = 1 - (this.explosionTimer / 30);
+            const currentRadius = this.scaledExplosionRadius * (0.5 + progress * 0.5);
+
+            // Outer glow
+            ctx.globalAlpha = 0.6 * (1 - progress);
+            ctx.fillStyle = '#FF4500';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, currentRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Inner flash
+            ctx.globalAlpha = 0.8 * (1 - progress);
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, currentRadius * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Explosion emoji
+            ctx.globalAlpha = 1 - progress;
+            ctx.font = `${40 * s}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('💥', this.x, this.y);
+
+            ctx.globalAlpha = 1;
+        } else {
+            // Draw bomb with pulsing effect
+            const pulse = Math.sin(this.timer * 0.3) * 0.2 + 1;
+            const bombSize = this.radius * 2 * pulse;
+
+            // Warning glow when about to explode
+            if (this.timer < 30) {
+                ctx.globalAlpha = 0.5 * (1 - this.timer / 30);
+                ctx.fillStyle = '#FF0000';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+
+            ctx.font = `${bombSize}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('💣', this.x, this.y);
+
+            // Timer indicator
+            ctx.font = `bold ${12 * s}px Arial`;
+            ctx.fillStyle = this.timer < 30 ? '#FF0000' : '#FFFFFF';
+            ctx.fillText(Math.ceil(this.timer / 60).toString(), this.x, this.y - this.radius - 10 * s);
+        }
+    }
+}
+
 // Collision detection utility
 function circleCollision(obj1, obj2) {
     const dx = obj1.x - obj2.x;

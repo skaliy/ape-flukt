@@ -105,7 +105,9 @@ const gameState = {
     highScore: parseInt(localStorage.getItem('apeFlukt_highScore')) || 0,
     invincibleTimer: 0,
     particles: [],
-    screenShake: 0
+    screenShake: 0,
+    bombs: [],
+    bombsRemaining: 3
 };
 
 // Game objects
@@ -152,6 +154,8 @@ function loadLevel(levelNum) {
     gameState.invincibleTimer = 120; // 2 seconds of invincibility at level start
     gameState.particles = [];
     gameState.screenShake = 0;
+    gameState.bombs = [];
+    gameState.bombsRemaining = 3;
 }
 
 function startGame() {
@@ -204,6 +208,53 @@ function updateParticles() {
     });
 }
 
+// Bomb placement function
+function placeBomb() {
+    if (gameState.status !== 'playing') return;
+    if (gameState.bombsRemaining <= 0) return;
+
+    // Create bomb at monkey's position
+    const bomb = new Bomb(monkey.x, monkey.y);
+    gameState.bombs.push(bomb);
+    gameState.bombsRemaining--;
+
+    // Visual feedback
+    createParticles(monkey.x, monkey.y, '💣', 3);
+}
+
+// Update bombs and check collisions with trolls
+function updateBombs() {
+    const s = gameScale;
+
+    // Update all bombs and remove inactive ones
+    gameState.bombs = gameState.bombs.filter(bomb => {
+        const isActive = bomb.update();
+
+        // Check if explosion hits any trolls
+        if (bomb.exploded) {
+            trolls.forEach(troll => {
+                if (bomb.hitsEntity(troll)) {
+                    // Stun troll by pushing it away
+                    const dx = troll.x - bomb.x;
+                    const dy = troll.y - bomb.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance > 0) {
+                        const pushForce = 150 * s;
+                        troll.x += (dx / distance) * pushForce;
+                        troll.y += (dy / distance) * pushForce;
+                        // Keep troll in bounds
+                        troll.x = Math.max(troll.radius, Math.min(canvas.width - troll.radius, troll.x));
+                        troll.y = Math.max(troll.radius, Math.min(canvas.height - troll.radius, troll.y));
+                    }
+                    createParticles(troll.x, troll.y, '💫', 5);
+                }
+            });
+        }
+
+        return isActive;
+    });
+}
+
 // Update game logic
 function update(dt) {
     if (gameState.status === 'playing') {
@@ -235,6 +286,9 @@ function update(dt) {
 
         // Update particles
         updateParticles();
+
+        // Update bombs
+        updateBombs();
 
         // Check banana collection
         bananas.forEach(banana => {
@@ -467,6 +521,24 @@ function drawUI() {
     ctx.fillStyle = 'white';
     ctx.textAlign = 'right';
     ctx.fillText('Sprint', barX - 4 * s, barY + barHeight * 0.85);
+
+    // Bomb count display
+    ctx.font = `bold ${Math.max(14, 18 * s)}px Arial`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = gameState.bombsRemaining > 0 ? '#FFD700' : '#666';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 4 * s;
+    ctx.fillText(`💣 ${gameState.bombsRemaining}`, 15 * s, 85 * s);
+
+    // Hint for bomb use (brief)
+    if (gameState.time < 5 && gameState.bombsRemaining > 0) {
+        ctx.font = `${Math.max(10, 12 * s)}px Arial`;
+        ctx.fillStyle = '#aaa';
+        ctx.globalAlpha = Math.max(0, 1 - gameState.time / 5);
+        ctx.fillText(touch.isMobile ? 'Dobbelt-trykk = bombe' : 'SPACE = bombe', 15 * s, 100 * s);
+        ctx.globalAlpha = 1;
+    }
+    ctx.shadowBlur = 0;
 }
 
 function drawMenu() {
@@ -700,6 +772,9 @@ function drawPlaying() {
     // Draw trolls (with danger glow)
     trolls.forEach(t => t.draw(ctx, monkey));
 
+    // Draw bombs
+    gameState.bombs.forEach(bomb => bomb.draw(ctx));
+
     // Draw particles
     drawParticles();
 
@@ -730,7 +805,7 @@ function render() {
     }
 }
 
-// Handle space key for state transitions
+// Handle space key for state transitions and bombs
 let spaceWasPressed = false;
 function handleInput() {
     if (keys.space && !spaceWasPressed) {
@@ -738,6 +813,10 @@ function handleInput() {
         switch (gameState.status) {
             case 'menu':
                 startGame();
+                break;
+            case 'playing':
+                // Space places bomb during gameplay
+                placeBomb();
                 break;
             case 'levelComplete':
                 nextLevel();
