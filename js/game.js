@@ -97,7 +97,7 @@ const BANANAS_REQUIRED = 10;
 
 // Game state
 const gameState = {
-    status: 'menu', // 'menu', 'playing', 'levelComplete', 'gameover'
+    status: 'menu', // 'menu', 'playing', 'levelComplete', 'gameover', 'leaderboard', 'enterName'
     score: 0,
     time: 0,
     level: 1,
@@ -107,7 +107,11 @@ const gameState = {
     particles: [],
     screenShake: 0,
     freezeTraps: [],
-    trapsRemaining: 3
+    trapsRemaining: 3,
+    // Leaderboard state
+    pendingScoreSubmit: false,
+    submittedRank: null,
+    playerNameInput: ''
 };
 
 // Game objects
@@ -218,8 +222,9 @@ function placeFreezeTrap() {
     gameState.freezeTraps.push(trap);
     gameState.trapsRemaining--;
 
-    // Visual feedback
+    // Visual and audio feedback
     createParticles(monkey.x, monkey.y, '🧊', 3);
+    AudioManager.play('freezeTrap');
 }
 
 // Update freeze traps and check collisions with trolls
@@ -234,6 +239,7 @@ function updateFreezeTraps() {
                     troll.freeze(180); // Freeze for 3 seconds
                     createParticles(troll.x, troll.y, '❄️', 8);
                     createParticles(troll.x, troll.y, '🧊', 4);
+                    AudioManager.play('trollFreeze');
                     break;
                 }
             }
@@ -289,6 +295,7 @@ function update(dt) {
                 banana.collect();
                 gameState.score += 100;
                 gameState.bananasCollected++;
+                AudioManager.play('collect');
             }
         });
 
@@ -296,10 +303,14 @@ function update(dt) {
         if (gameState.invincibleTimer <= 0) {
             for (const troll of trolls) {
                 if (circleCollision(monkey, troll)) {
-                    gameState.status = 'gameover';
                     gameState.screenShake = 20;
                     createParticles(monkey.x, monkey.y, '💥', 10);
+                    AudioManager.play('gameover');
                     saveHighScore();
+                    // Go to name entry for leaderboard
+                    gameState.status = 'enterName';
+                    gameState.playerNameInput = LeaderboardManager.playerName || '';
+                    gameState.submittedRank = null;
                     return;
                 }
             }
@@ -310,6 +321,7 @@ function update(dt) {
             gameState.score += 500; // Level completion bonus
             gameState.status = 'levelComplete';
             createParticles(canvas.width / 2, canvas.height / 2, '🎉', 20);
+            AudioManager.play('levelComplete');
         }
     }
 }
@@ -497,6 +509,23 @@ function drawUI() {
         ctx.globalAlpha = 1;
     }
     ctx.shadowBlur = 0;
+
+    // Audio mute indicator
+    if (typeof AudioManager !== 'undefined') {
+        ctx.font = `${Math.max(16, 20 * s)}px Arial`;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = AudioManager.muted ? '#666' : '#fff';
+        ctx.fillText(AudioManager.muted ? '🔇' : '🔊', canvas.width - 15 * s, canvas.height - 15 * s);
+
+        // Show hint briefly
+        if (gameState.time < 4 && !touch.isMobile) {
+            ctx.font = `${Math.max(10, 11 * s)}px Arial`;
+            ctx.fillStyle = '#888';
+            ctx.globalAlpha = Math.max(0, 1 - gameState.time / 4);
+            ctx.fillText('M = lyd', canvas.width - 15 * s, canvas.height - 35 * s);
+            ctx.globalAlpha = 1;
+        }
+    }
 }
 
 function drawMenu() {
@@ -558,12 +587,33 @@ function drawMenu() {
         ctx.fillText(`🏆 Rekord: ${gameState.highScore}`, canvas.width / 2, canvas.height * (portrait ? 0.54 : 0.72));
     }
 
+    // Leaderboard button
+    const btnWidth = 160 * s;
+    const btnHeight = 36 * s;
+    const btnX = (canvas.width - btnWidth) / 2;
+    const btnY = canvas.height * (portrait ? 0.58 : 0.76);
+
+    // Store button position for click detection
+    gameState.leaderboardBtn = { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
+
+    ctx.fillStyle = 'rgba(135, 206, 235, 0.3)';
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, btnWidth, btnHeight, 8 * s);
+    ctx.fill();
+    ctx.strokeStyle = '#87CEEB';
+    ctx.lineWidth = 2 * s;
+    ctx.stroke();
+
+    ctx.font = `bold ${Math.max(12, (portrait ? 14 : 16) * s)}px Arial`;
+    ctx.fillStyle = '#87CEEB';
+    ctx.fillText('🏆 Toppliste', canvas.width / 2, btnY + btnHeight * 0.65);
+
     // Start prompt
     ctx.font = `bold ${promptSize}px Arial`;
     ctx.fillStyle = '#4CAF50';
     const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
     ctx.globalAlpha = pulse;
-    ctx.fillText('Trykk for å starte', canvas.width / 2, canvas.height * (portrait ? 0.65 : 0.84));
+    ctx.fillText(touch.isMobile ? 'Trykk for å starte' : 'Trykk SPACE for å starte', canvas.width / 2, canvas.height * (portrait ? 0.68 : 0.86));
     ctx.globalAlpha = 1;
 
     ctx.shadowBlur = 0;
@@ -633,6 +683,7 @@ function drawLevelComplete() {
 
 function drawGameOver() {
     const s = gameScale;
+    const portrait = isPortraitMode;
 
     // Apply screen shake
     if (gameState.screenShake > 0) {
@@ -668,35 +719,131 @@ function drawGameOver() {
 
     // Title
     ctx.fillStyle = 'white';
-    ctx.font = `bold ${Math.max(28, 48 * s)}px Arial`;
+    ctx.font = `bold ${Math.max(24, (portrait ? 32 : 48) * s)}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('💀 TATT! 💀', canvas.width / 2, canvas.height * 0.22);
+    ctx.fillText('💀 TATT! 💀', canvas.width / 2, canvas.height * 0.12);
 
     // Current theme
     const theme = LEVEL_THEMES[Math.min(gameState.level - 1, LEVEL_THEMES.length - 1)];
 
     // Stats
-    ctx.font = `${Math.max(16, 24 * s)}px Arial`;
-    ctx.fillText(`Sluttpoeng: ${gameState.score}`, canvas.width / 2, canvas.height * 0.34);
-    ctx.fillText(`🍌 Bananer: ${gameState.bananasCollected}/${BANANAS_REQUIRED}`, canvas.width / 2, canvas.height * 0.42);
-    ctx.fillText(`Nivå ${gameState.level}: ${theme.name}`, canvas.width / 2, canvas.height * 0.50);
+    ctx.font = `${Math.max(14, (portrait ? 18 : 24) * s)}px Arial`;
+    ctx.fillText(`Sluttpoeng: ${gameState.score}`, canvas.width / 2, canvas.height * 0.22);
+    ctx.fillText(`🍌 ${gameState.bananasCollected}/${BANANAS_REQUIRED} | Nivå ${gameState.level}: ${theme.name}`, canvas.width / 2, canvas.height * 0.29);
 
     // New high score?
     if (gameState.score === gameState.highScore && gameState.score > 0) {
         ctx.fillStyle = '#FFD700';
-        ctx.font = `bold ${Math.max(20, 28 * s)}px Arial`;
-        ctx.fillText('🏆 NY REKORD! 🏆', canvas.width / 2, canvas.height * 0.60);
+        ctx.font = `bold ${Math.max(16, (portrait ? 20 : 24) * s)}px Arial`;
+        ctx.fillText('🏆 NY REKORD! 🏆', canvas.width / 2, canvas.height * 0.36);
+    }
+
+    ctx.shadowBlur = 0;
+
+    // Name input section (for leaderboard)
+    if (gameState.status === 'enterName') {
+        // Title
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${Math.max(14, (portrait ? 18 : 22) * s)}px Arial`;
+        ctx.fillText('Legg til navn i topplisten?', canvas.width / 2, canvas.height * 0.44);
+
+        // Input box - larger and more prominent
+        const boxWidth = Math.min(260 * s, canvas.width * 0.75);
+        const boxHeight = 44 * s;
+        const boxX = (canvas.width - boxWidth) / 2;
+        const boxY = canvas.height * 0.48;
+
+        // Input box with border
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 10 * s);
+        ctx.fill();
+        ctx.strokeStyle = '#4CAF50';
+        ctx.lineWidth = 2 * s;
+        ctx.stroke();
+
+        // Store input box for click detection
+        gameState.inputBox = { x: boxX, y: boxY, width: boxWidth, height: boxHeight };
+
+        // Name text or placeholder
+        const displayName = gameState.playerNameInput || LeaderboardManager.playerName || '';
+        ctx.font = `bold ${Math.max(16, 20 * s)}px Arial`;
+        ctx.textAlign = 'center';
+
+        if (displayName) {
+            ctx.fillStyle = '#333';
+            const cursorBlink = Math.sin(Date.now() / 300) > 0 ? '|' : '';
+            ctx.fillText(displayName + cursorBlink, canvas.width / 2, boxY + boxHeight * 0.62);
+        } else {
+            ctx.fillStyle = '#999';
+            ctx.fillText('Skriv navn her...', canvas.width / 2, boxY + boxHeight * 0.62);
+        }
+
+        // Buttons - larger and side by side
+        const btnWidth = 120 * s;
+        const btnHeight = 44 * s;
+        const btnGap = 16 * s;
+        const totalWidth = btnWidth * 2 + btnGap;
+        const startBtnX = (canvas.width - totalWidth) / 2;
+        const btnRowY = canvas.height * 0.62;
+
+        // Submit button - green, prominent
+        ctx.fillStyle = '#4CAF50';
+        ctx.beginPath();
+        ctx.roundRect(startBtnX, btnRowY, btnWidth, btnHeight, 8 * s);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${Math.max(14, 16 * s)}px Arial`;
+        ctx.fillText('✓ Send', startBtnX + btnWidth / 2, btnRowY + btnHeight * 0.62);
+
+        // Skip button - gray
+        const skipBtnX = startBtnX + btnWidth + btnGap;
+        ctx.fillStyle = '#666';
+        ctx.beginPath();
+        ctx.roundRect(skipBtnX, btnRowY, btnWidth, btnHeight, 8 * s);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.fillText('✗ Hopp over', skipBtnX + btnWidth / 2, btnRowY + btnHeight * 0.62);
+
+        // Store button positions for click detection
+        gameState.submitBtn = { x: startBtnX, y: btnRowY, width: btnWidth, height: btnHeight };
+        gameState.skipBtn = { x: skipBtnX, y: btnRowY, width: btnWidth, height: btnHeight };
+
+        // Instructions
+        ctx.fillStyle = '#aaa';
+        ctx.font = `${Math.max(10, 12 * s)}px Arial`;
+        if (touch.isMobile) {
+            ctx.fillText('Trykk i boksen for å skrive navn', canvas.width / 2, canvas.height * 0.76);
+        } else {
+            ctx.fillText('Skriv navn og trykk ENTER, eller ESC for å hoppe over', canvas.width / 2, canvas.height * 0.76);
+        }
+    } else if (gameState.submittedRank) {
+        // Show rank after submission
+        ctx.fillStyle = '#87CEEB';
+        ctx.font = `bold ${Math.max(16, (portrait ? 20 : 24) * s)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText(`🌍 Du er #${gameState.submittedRank} globalt!`, canvas.width / 2, canvas.height * 0.50);
+    } else if (gameState.pendingScoreSubmit) {
+        ctx.fillStyle = '#aaa';
+        ctx.font = `${Math.max(12, 16 * s)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText('Sender poeng...', canvas.width / 2, canvas.height * 0.50);
     }
 
     // Restart prompt
-    ctx.font = `bold ${Math.max(18, 22 * s)}px Arial`;
+    ctx.font = `bold ${Math.max(14, (portrait ? 16 : 20) * s)}px Arial`;
     ctx.fillStyle = '#4CAF50';
+    ctx.textAlign = 'center';
     const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
     ctx.globalAlpha = pulse;
-    ctx.fillText(touch.isMobile ? 'Trykk for å prøve igjen' : 'Trykk SPACE for å prøve igjen', canvas.width / 2, canvas.height * 0.75);
+    if (gameState.status !== 'enterName') {
+        ctx.fillText(touch.isMobile ? 'Trykk for å prøve igjen' : 'Trykk SPACE for å prøve igjen', canvas.width / 2, canvas.height * 0.80);
+        ctx.globalAlpha = 0.7;
+        ctx.font = `${Math.max(11, 14 * s)}px Arial`;
+        ctx.fillStyle = '#87CEEB';
+        ctx.fillText('L = Toppliste', canvas.width / 2, canvas.height * 0.87);
+    }
     ctx.globalAlpha = 1;
-
-    ctx.shadowBlur = 0;
 }
 
 function drawPlaying() {
@@ -743,6 +890,109 @@ function drawPlaying() {
     drawUI();
 }
 
+// Draw leaderboard screen
+function drawLeaderboard() {
+    drawBackground();
+
+    const s = gameScale;
+    const portrait = isPortraitMode;
+
+    // Darken overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 6 * s;
+
+    // Title
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `bold ${Math.max(20, (portrait ? 24 : 36) * s)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.fillText('🏆 TOPPLISTE 🏆', canvas.width / 2, canvas.height * 0.1);
+
+    ctx.shadowBlur = 0;
+
+    // Loading indicator
+    if (LeaderboardManager.isLoading) {
+        ctx.fillStyle = 'white';
+        ctx.font = `${Math.max(14, 18 * s)}px Arial`;
+        ctx.fillText('Laster...', canvas.width / 2, canvas.height * 0.5);
+    } else if (LeaderboardManager.scores.length === 0) {
+        ctx.fillStyle = '#aaa';
+        ctx.font = `${Math.max(14, 18 * s)}px Arial`;
+        ctx.fillText('Ingen poeng ennå!', canvas.width / 2, canvas.height * 0.4);
+        ctx.fillText('Vær den første!', canvas.width / 2, canvas.height * 0.48);
+    } else {
+        // Draw scores
+        const startY = canvas.height * 0.18;
+        const rowHeight = (portrait ? 32 : 42) * s;
+        const fontSize = Math.max(12, (portrait ? 14 : 18) * s);
+
+        // Header
+        ctx.fillStyle = '#888';
+        ctx.font = `bold ${Math.max(10, (portrait ? 11 : 14) * s)}px Arial`;
+        ctx.textAlign = 'left';
+        ctx.fillText('#', canvas.width * 0.1, startY);
+        ctx.fillText('NAVN', canvas.width * 0.18, startY);
+        ctx.textAlign = 'right';
+        ctx.fillText('POENG', canvas.width * 0.75, startY);
+        ctx.fillText('NIVÅ', canvas.width * 0.9, startY);
+
+        LeaderboardManager.scores.forEach((entry, index) => {
+            const y = startY + (index + 1) * rowHeight;
+            const isHighlight = LeaderboardManager.lastSubmittedRank === index + 1;
+
+            // Highlight row for just-submitted score
+            if (isHighlight) {
+                ctx.fillStyle = 'rgba(255, 215, 0, 0.2)';
+                ctx.fillRect(canvas.width * 0.05, y - rowHeight * 0.6, canvas.width * 0.9, rowHeight * 0.9);
+            }
+
+            // Rank medal or number
+            ctx.font = `bold ${fontSize}px Arial`;
+            ctx.textAlign = 'left';
+            if (index === 0) {
+                ctx.fillStyle = '#FFD700';
+                ctx.fillText('🥇', canvas.width * 0.08, y);
+            } else if (index === 1) {
+                ctx.fillStyle = '#C0C0C0';
+                ctx.fillText('🥈', canvas.width * 0.08, y);
+            } else if (index === 2) {
+                ctx.fillStyle = '#CD7F32';
+                ctx.fillText('🥉', canvas.width * 0.08, y);
+            } else {
+                ctx.fillStyle = '#888';
+                ctx.fillText(`${index + 1}`, canvas.width * 0.1, y);
+            }
+
+            // Name
+            ctx.fillStyle = isHighlight ? '#FFD700' : 'white';
+            ctx.font = `${fontSize}px Arial`;
+            const displayName = entry.player_name.length > 12
+                ? entry.player_name.substring(0, 11) + '…'
+                : entry.player_name;
+            ctx.fillText(displayName, canvas.width * 0.18, y);
+
+            // Score
+            ctx.textAlign = 'right';
+            ctx.fillText(entry.score.toLocaleString(), canvas.width * 0.75, y);
+
+            // Level
+            ctx.fillStyle = isHighlight ? '#87CEEB' : '#aaa';
+            ctx.fillText(entry.level_reached, canvas.width * 0.9, y);
+        });
+    }
+
+    // Play again button
+    ctx.font = `bold ${Math.max(14, (portrait ? 16 : 20) * s)}px Arial`;
+    ctx.fillStyle = '#4CAF50';
+    ctx.textAlign = 'center';
+    const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
+    ctx.globalAlpha = pulse;
+    ctx.fillText('🎮 Trykk for å spille igjen', canvas.width / 2, canvas.height * 0.92);
+    ctx.globalAlpha = 1;
+}
+
 // Main render function
 function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -758,14 +1008,95 @@ function render() {
             drawLevelComplete();
             break;
         case 'gameover':
+        case 'enterName':
             drawGameOver();
+            break;
+        case 'leaderboard':
+            drawLeaderboard();
             break;
     }
 }
 
+// Track mute button area for click handling
+function checkMuteButtonClick(x, y) {
+    const s = gameScale;
+    const btnX = canvas.width - 40 * s;
+    const btnY = canvas.height - 40 * s;
+    const btnSize = 35 * s;
+
+    if (x >= btnX && x <= btnX + btnSize && y >= btnY && y <= btnY + btnSize) {
+        if (typeof AudioManager !== 'undefined') {
+            AudioManager.toggleMute();
+            return true;
+        }
+    }
+    return false;
+}
+
+// Check if point is inside a button
+function isInsideButton(x, y, btn) {
+    if (!btn) return false;
+    return x >= btn.x && x <= btn.x + btn.width && y >= btn.y && y <= btn.y + btn.height;
+}
+
+// Add click listener for buttons
+canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+
+    // Menu: leaderboard button
+    if (gameState.status === 'menu') {
+        if (isInsideButton(x, y, gameState.leaderboardBtn)) {
+            gameState.status = 'leaderboard';
+            LeaderboardManager.fetchScores();
+            return;
+        }
+    }
+
+    // Name entry: submit and skip buttons
+    if (gameState.status === 'enterName') {
+        if (isInsideButton(x, y, gameState.submitBtn)) {
+            submitScoreWithName();
+            return;
+        }
+        if (isInsideButton(x, y, gameState.skipBtn)) {
+            gameState.playerNameInput = '';
+            submitScoreWithName();
+            return;
+        }
+        // Clicking the input box on mobile opens prompt
+        if (touch.isMobile && isInsideButton(x, y, gameState.inputBox)) {
+            promptForName();
+            return;
+        }
+    }
+
+    // Playing: mute button
+    if (gameState.status === 'playing') {
+        checkMuteButtonClick(x, y);
+    }
+});
+
 // Handle space key for state transitions and bombs
 let spaceWasPressed = false;
+let lKeyWasPressed = false;
+
 function handleInput() {
+    // L key for leaderboard
+    if (keys.l && !lKeyWasPressed) {
+        lKeyWasPressed = true;
+        if (gameState.status === 'menu' || gameState.status === 'gameover') {
+            gameState.status = 'leaderboard';
+            LeaderboardManager.fetchScores();
+        }
+    }
+    if (!keys.l) {
+        lKeyWasPressed = false;
+    }
+
     if (keys.space && !spaceWasPressed) {
         spaceWasPressed = true;
         switch (gameState.status) {
@@ -781,6 +1112,17 @@ function handleInput() {
                 break;
             case 'gameover':
                 gameState.status = 'menu';
+                gameState.submittedRank = null;
+                break;
+            case 'leaderboard':
+                gameState.status = 'menu';
+                break;
+            case 'enterName':
+                // On mobile, trigger the prompt
+                if (touch.isMobile) {
+                    promptForName();
+                }
+                // On desktop, Enter key is handled separately
                 break;
         }
     }
@@ -788,6 +1130,69 @@ function handleInput() {
         spaceWasPressed = false;
     }
 }
+
+// Name input handling for leaderboard
+function setupNameInput() {
+    // Listen for keyboard input during name entry
+    window.addEventListener('keydown', (e) => {
+        if (gameState.status !== 'enterName') return;
+
+        if (e.key === 'Enter') {
+            submitScoreWithName();
+            e.preventDefault();
+        } else if (e.key === 'Escape') {
+            // Skip name entry, submit as Anonymous
+            gameState.playerNameInput = '';
+            submitScoreWithName();
+            e.preventDefault();
+        } else if (e.key === 'Backspace') {
+            gameState.playerNameInput = gameState.playerNameInput.slice(0, -1);
+            e.preventDefault();
+        } else if (e.key.length === 1 && gameState.playerNameInput.length < 20) {
+            // Add character if it's a printable character
+            gameState.playerNameInput += e.key;
+            e.preventDefault();
+        }
+    });
+}
+
+// Mobile prompt for name input
+function promptForName() {
+    const name = prompt('Skriv navn for toppliste:', gameState.playerNameInput || LeaderboardManager.playerName || '');
+    if (name !== null) {
+        gameState.playerNameInput = name.substring(0, 20);
+        submitScoreWithName();
+    } else {
+        // User cancelled, submit as Anonymous
+        gameState.playerNameInput = '';
+        submitScoreWithName();
+    }
+}
+
+async function submitScoreWithName() {
+    const name = gameState.playerNameInput || LeaderboardManager.playerName || 'Anonymous';
+    gameState.pendingScoreSubmit = true;
+
+    try {
+        const rank = await LeaderboardManager.submitScore(
+            gameState.score,
+            gameState.level,
+            name
+        );
+        gameState.submittedRank = rank;
+    } catch (err) {
+        console.error('Failed to submit score:', err);
+        gameState.submittedRank = null;
+    }
+
+    gameState.pendingScoreSubmit = false;
+    // Show leaderboard after submitting
+    gameState.status = 'leaderboard';
+    LeaderboardManager.fetchScores();
+}
+
+// Initialize name input handling
+setupNameInput();
 
 // Main game loop
 let lastTime = 0;

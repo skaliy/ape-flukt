@@ -5,7 +5,8 @@ const keys = {
     left: false,
     right: false,
     shift: false,
-    space: false
+    space: false,
+    l: false
 };
 
 // Mouse input handling
@@ -109,7 +110,8 @@ gameCanvas.addEventListener('touchstart', (e) => {
     }
 
     // Also activate space for menu/restart (only on first tap, not double tap)
-    if (!touch.doubleTap) {
+    // Don't trigger space during name entry (buttons handle it)
+    if (!touch.doubleTap && typeof gameState !== 'undefined' && gameState.status !== 'enterName') {
         keys.space = true;
         setTimeout(() => { keys.space = false; }, 100);
     }
@@ -175,6 +177,11 @@ gameCanvas.addEventListener('touchcancel', (e) => {
 
 // Keyboard events
 document.addEventListener('keydown', (e) => {
+    // Don't capture game keys during name entry (let game.js handle it)
+    if (typeof gameState !== 'undefined' && gameState.status === 'enterName') {
+        return;
+    }
+
     switch(e.key) {
         case 'ArrowUp':
         case 'w':
@@ -207,6 +214,16 @@ document.addEventListener('keydown', (e) => {
             keys.space = true;
             e.preventDefault();
             break;
+        case 'm':
+        case 'M':
+            if (typeof AudioManager !== 'undefined') {
+                AudioManager.toggleMute();
+            }
+            break;
+        case 'l':
+        case 'L':
+            keys.l = true;
+            break;
     }
 });
 
@@ -237,6 +254,10 @@ document.addEventListener('keyup', (e) => {
             break;
         case ' ':
             keys.space = false;
+            break;
+        case 'l':
+        case 'L':
+            keys.l = false;
             break;
     }
 });
