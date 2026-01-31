@@ -785,9 +785,10 @@ function drawGameOver() {
         ctx.fillStyle = 'white';
         ctx.font = `bold ${Math.max(16, 20 * s)}px Arial`;
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         ctx.shadowColor = 'rgba(0,0,0,0.3)';
         ctx.shadowBlur = 2 * s;
-        ctx.fillText('✓ Send', startBtnX + btnWidth / 2, btnRowY + btnHeight * 0.6);
+        ctx.fillText('✓ Send', startBtnX + btnWidth / 2, btnRowY + btnHeight / 2);
         ctx.shadowBlur = 0;
 
         // Skip button - subtle but visible
@@ -805,7 +806,8 @@ function drawGameOver() {
         // Skip button text
         ctx.fillStyle = '#ddd';
         ctx.font = `bold ${Math.max(14, 18 * s)}px Arial`;
-        ctx.fillText('Hopp over', skipBtnX + btnWidth / 2, btnRowY + btnHeight * 0.6);
+        ctx.fillText('Hopp over', skipBtnX + btnWidth / 2, btnRowY + btnHeight / 2);
+        ctx.textBaseline = 'alphabetic';
 
         // Store button positions for click detection
         gameState.submitBtn = { x: startBtnX, y: btnRowY, width: btnWidth, height: btnHeight };
