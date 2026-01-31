@@ -75,6 +75,16 @@ gameCanvas.addEventListener('mouseenter', (e) => {
     mouse.y = (e.clientY - rect.top) * scaleY;
 });
 
+// Helper function to get sprint button zone size (synced with drawTouchControls)
+function getSprintZoneSize() {
+    const s = window.gameScale || 1;
+    const mobileBoost = 1.3;
+    const sprintRadius = 50 * s * mobileBoost;
+    const sprintMargin = 20 * s;
+    // Make touch zone slightly larger than visual button for easier tapping
+    return (sprintRadius + sprintMargin) * 1.2;
+}
+
 // Touch events (mobile)
 gameCanvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
@@ -87,8 +97,9 @@ gameCanvas.addEventListener('touchstart', (e) => {
         const x = (touchPoint.clientX - rect.left) * scaleX;
         const y = (touchPoint.clientY - rect.top) * scaleY;
 
-        // Check if touching sprint button area (bottom right)
-        if (x > gameCanvas.width - 150 && y > gameCanvas.height - 150) {
+        // Check if touching sprint button area (bottom right) - scaled zone
+        const sprintZone = getSprintZoneSize();
+        if (x > gameCanvas.width - sprintZone && y > gameCanvas.height - sprintZone) {
             touch.isSprinting = true;
         } else {
             // Start joystick
@@ -117,18 +128,20 @@ gameCanvas.addEventListener('touchmove', (e) => {
         const x = (touchPoint.clientX - rect.left) * scaleX;
         const y = (touchPoint.clientY - rect.top) * scaleY;
 
-        // Check if this touch is on sprint button
-        if (x > gameCanvas.width - 150 && y > gameCanvas.height - 150) {
+        // Check if this touch is on sprint button - scaled zone
+        const sprintZone = getSprintZoneSize();
+        if (x > gameCanvas.width - sprintZone && y > gameCanvas.height - sprintZone) {
             touch.isSprinting = true;
         } else if (touch.joystickActive) {
             touch.currentX = x;
             touch.currentY = y;
 
-            // Calculate joystick direction
+            // Calculate joystick direction - scaled max distance
+            const s = window.gameScale || 1;
             const dx = touch.currentX - touch.startX;
             const dy = touch.currentY - touch.startY;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            const maxDistance = 80;
+            const maxDistance = 70 * s;
 
             if (distance > 0) {
                 const clampedDistance = Math.min(distance, maxDistance);
@@ -158,12 +171,13 @@ gameCanvas.addEventListener('touchend', (e) => {
         let sprintTouchFound = false;
         let joystickTouchFound = false;
 
+        const sprintZone = getSprintZoneSize();
         for (let i = 0; i < e.touches.length; i++) {
             const touchPoint = e.touches[i];
             const x = (touchPoint.clientX - rect.left) * scaleX;
             const y = (touchPoint.clientY - rect.top) * scaleY;
 
-            if (x > gameCanvas.width - 150 && y > gameCanvas.height - 150) {
+            if (x > gameCanvas.width - sprintZone && y > gameCanvas.height - sprintZone) {
                 sprintTouchFound = true;
             } else {
                 joystickTouchFound = true;

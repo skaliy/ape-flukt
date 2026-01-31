@@ -6,12 +6,24 @@ class Monkey {
         this.y = y;
         this.vx = 0;
         this.vy = 0;
-        this.radius = 30;
-        this.speed = 6;
-        this.sprintSpeed = 10;
+        this.baseRadius = 30;
+        this.baseSpeed = 6;
+        this.baseSprintSpeed = 10;
         this.emoji = '🐵';
         this.stamina = 100;
         this.maxStamina = 100;
+    }
+
+    get radius() {
+        return this.baseRadius * (window.gameScale || 1);
+    }
+
+    get speed() {
+        return this.baseSpeed * (window.gameScale || 1);
+    }
+
+    get sprintSpeed() {
+        return this.baseSprintSpeed * (window.gameScale || 1);
     }
 
     update(keys, canvas, mouse, touchInput = null) {
@@ -112,10 +124,22 @@ class Troll {
         this.y = y;
         this.vx = 0;
         this.vy = 0;
-        this.radius = 35;
-        this.speed = 2.5;
+        this.baseRadius = 35;
+        this.baseSpeed = 2.5;
         this.emoji = '👹';
         this.predictionFactor = 0;
+    }
+
+    get radius() {
+        return this.baseRadius * (window.gameScale || 1);
+    }
+
+    set speed(val) {
+        this.baseSpeed = val;
+    }
+
+    get speed() {
+        return this.baseSpeed * (window.gameScale || 1);
     }
 
     update(monkey, canvas) {
@@ -144,13 +168,15 @@ class Troll {
     }
 
     draw(ctx, monkey = null) {
+        const s = window.gameScale || 1;
+
         // Calculate danger level based on distance to monkey
         let dangerGlow = 0;
         if (monkey) {
             const dx = this.x - monkey.x;
             const dy = this.y - monkey.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            const dangerDistance = 150;
+            const dangerDistance = 150 * s;
             if (distance < dangerDistance) {
                 dangerGlow = 1 - (distance / dangerDistance);
             }
@@ -159,7 +185,7 @@ class Troll {
         // Red glow when close to monkey
         if (dangerGlow > 0) {
             ctx.shadowColor = `rgba(255, 0, 0, ${dangerGlow * 0.8})`;
-            ctx.shadowBlur = 20 + dangerGlow * 20;
+            ctx.shadowBlur = (20 + dangerGlow * 20) * s;
         }
 
         ctx.font = `${this.radius * 2}px Arial`;
@@ -181,7 +207,7 @@ class Troll {
 class Banana {
     constructor(canvas, otherEntities = []) {
         this.canvas = canvas;
-        this.radius = 22;
+        this.baseRadius = 22;
         this.emoji = '🍌';
         this.collected = false;
         this.otherEntities = otherEntities;
@@ -189,14 +215,20 @@ class Banana {
         this.respawn();
     }
 
+    get radius() {
+        return this.baseRadius * (window.gameScale || 1);
+    }
+
     respawn() {
-        const margin = 80;
+        const s = window.gameScale || 1;
+        const margin = 60 * s;
+        const groundHeight = 40 * s;
         let attempts = 0;
         const maxAttempts = 50;
 
         do {
             this.x = Math.random() * (this.canvas.width - margin * 2) + margin;
-            this.y = Math.random() * (this.canvas.height - margin * 2 - 50) + margin; // Avoid ground
+            this.y = Math.random() * (this.canvas.height - margin - groundHeight - margin) + margin;
             attempts++;
         } while (this.isTooCloseToEntities() && attempts < maxAttempts);
 
@@ -204,7 +236,8 @@ class Banana {
     }
 
     isTooCloseToEntities() {
-        const minDistance = 100;
+        const s = window.gameScale || 1;
+        const minDistance = 80 * s;
         for (const entity of this.otherEntities) {
             if (entity && entity.x !== undefined) {
                 const dx = this.x - entity.x;
@@ -236,12 +269,14 @@ class Banana {
     draw(ctx) {
         if (this.collected) return;
 
+        const s = window.gameScale || 1;
+
         // Floating animation
-        const bobY = Math.sin(this.bobOffset) * 5;
+        const bobY = Math.sin(this.bobOffset) * 4 * s;
 
         // Glow effect
         ctx.shadowColor = 'rgba(255, 215, 0, 0.6)';
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 12 * s;
 
         ctx.font = `${this.radius * 2}px Arial`;
         ctx.textAlign = 'center';

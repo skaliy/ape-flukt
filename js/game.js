@@ -2,9 +2,41 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Canvas size
-canvas.width = 1100;
-canvas.height = 750;
+// Responsive canvas and scaling
+let gameScale = 1;
+const BASE_WIDTH = 1100;
+const BASE_HEIGHT = 750;
+
+function resizeCanvas() {
+    const container = document.getElementById('gameContainer');
+    const availableWidth = container.clientWidth - 10;
+    const availableHeight = window.innerHeight - 20;
+    const aspectRatio = BASE_WIDTH / BASE_HEIGHT;
+
+    let width = availableWidth;
+    let height = width / aspectRatio;
+
+    // Constrain by height if needed
+    if (height > availableHeight) {
+        height = availableHeight;
+        width = height * aspectRatio;
+    }
+
+    // Minimum size for playability
+    width = Math.max(width, 320);
+    height = width / aspectRatio;
+
+    canvas.width = width;
+    canvas.height = height;
+    gameScale = width / BASE_WIDTH;
+    window.gameScale = gameScale; // Update global reference
+}
+
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// Expose gameScale globally for entities
+window.gameScale = gameScale;
 
 // Level configuration (slower trolls)
 const LEVELS = [
@@ -53,17 +85,18 @@ function initGame() {
 }
 
 function loadLevel(levelNum) {
+    const s = gameScale;
     const levelIndex = Math.min(levelNum - 1, LEVELS.length - 1);
     const level = LEVELS[levelIndex];
 
     // Reset monkey position
     monkey.reset(canvas.width / 2, canvas.height / 2);
 
-    // Create trolls
+    // Create trolls - spawn at edges scaled to canvas size
     trolls = [];
+    const spawnDistance = Math.min(canvas.width, canvas.height) * 0.42;
     for (let i = 0; i < level.trollCount; i++) {
         const angle = (i / level.trollCount) * Math.PI * 2;
-        const spawnDistance = 350;
         const spawnX = canvas.width / 2 + Math.cos(angle) * spawnDistance;
         const spawnY = canvas.height / 2 + Math.sin(angle) * spawnDistance;
         const troll = new Troll(spawnX, spawnY);
@@ -110,24 +143,26 @@ function saveHighScore() {
 
 // Particle system for visual effects
 function createParticles(x, y, emoji, count = 5) {
+    const s = gameScale;
     for (let i = 0; i < count; i++) {
         gameState.particles.push({
             x: x,
             y: y,
-            vx: (Math.random() - 0.5) * 8,
-            vy: (Math.random() - 0.5) * 8 - 2,
+            vx: (Math.random() - 0.5) * 8 * s,
+            vy: (Math.random() - 0.5) * 8 * s - 2 * s,
             life: 60,
             emoji: emoji,
-            size: 20 + Math.random() * 15
+            size: (18 + Math.random() * 12) * s
         });
     }
 }
 
 function updateParticles() {
+    const s = gameScale;
     gameState.particles = gameState.particles.filter(p => {
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.2; // gravity
+        p.vy += 0.15 * s; // gravity scaled
         p.life--;
         p.size *= 0.97;
         return p.life > 0;
@@ -204,6 +239,8 @@ function update(dt) {
 
 // Draw functions
 function drawBackground() {
+    const s = gameScale;
+
     // Get current theme
     const themeIndex = Math.min(gameState.level - 1, LEVEL_THEMES.length - 1);
     const theme = LEVEL_THEMES[themeIndex];
@@ -212,8 +249,8 @@ function drawBackground() {
     if (gameState.screenShake > 0) {
         ctx.save();
         ctx.translate(
-            (Math.random() - 0.5) * gameState.screenShake,
-            (Math.random() - 0.5) * gameState.screenShake
+            (Math.random() - 0.5) * gameState.screenShake * s,
+            (Math.random() - 0.5) * gameState.screenShake * s
         );
     }
 
@@ -226,14 +263,19 @@ function drawBackground() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Ground
+    const groundHeight = 40 * s;
     ctx.fillStyle = theme.ground;
-    ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
+    ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
 
-    // Decorative elements at bottom
-    ctx.font = '50px Arial';
+    // Decorative elements at bottom - scale count and size
+    const treeSize = Math.max(24, 40 * s);
+    const treeCount = Math.max(8, Math.floor(canvas.width / (60 * s)));
+    const treeSpacing = canvas.width / treeCount;
+
+    ctx.font = `${treeSize}px Arial`;
     ctx.textAlign = 'center';
-    for (let i = 0; i < 16; i++) {
-        ctx.fillText(theme.trees[i % 3], i * 72 + 36, canvas.height - 12);
+    for (let i = 0; i < treeCount; i++) {
+        ctx.fillText(theme.trees[i % 3], i * treeSpacing + treeSpacing / 2, canvas.height - groundHeight * 0.25);
     }
 
     if (gameState.screenShake > 0) {
@@ -257,57 +299,67 @@ function drawParticles() {
 function drawTouchControls() {
     if (!touch.isMobile) return;
 
+    const s = gameScale;
+    // Make controls larger on mobile for easier touch
+    const mobileBoost = 1.3;
+
     ctx.save();
 
     // Draw joystick base (where touch started)
     if (touch.joystickActive) {
+        const joystickRadius = 60 * s * mobileBoost;
+        const knobRadius = 30 * s * mobileBoost;
+        const innerRadius = 12 * s * mobileBoost;
+        const knobDistance = 45 * s * mobileBoost;
+
         // Outer circle
         ctx.globalAlpha = 0.3;
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(touch.startX, touch.startY, 70, 0, Math.PI * 2);
+        ctx.arc(touch.startX, touch.startY, joystickRadius, 0, Math.PI * 2);
         ctx.fill();
 
         // Direction indicator
         ctx.globalAlpha = 0.6;
         ctx.fillStyle = '#4CAF50';
-        const knobX = touch.startX + touch.joystickX * 50;
-        const knobY = touch.startY + touch.joystickY * 50;
+        const knobX = touch.startX + touch.joystickX * knobDistance;
+        const knobY = touch.startY + touch.joystickY * knobDistance;
         ctx.beginPath();
-        ctx.arc(knobX, knobY, 35, 0, Math.PI * 2);
+        ctx.arc(knobX, knobY, knobRadius, 0, Math.PI * 2);
         ctx.fill();
 
         // Inner dot
         ctx.globalAlpha = 0.8;
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(knobX, knobY, 15, 0, Math.PI * 2);
+        ctx.arc(knobX, knobY, innerRadius, 0, Math.PI * 2);
         ctx.fill();
     }
 
-    // Draw sprint button (bottom right)
-    const sprintX = canvas.width - 85;
-    const sprintY = canvas.height - 85;
-    const sprintRadius = 55;
+    // Draw sprint button (bottom right) - larger for mobile
+    const sprintRadius = 50 * s * mobileBoost;
+    const sprintMargin = 20 * s;
+    const sprintX = canvas.width - sprintRadius - sprintMargin;
+    const sprintY = canvas.height - sprintRadius - sprintMargin;
 
     // Button background
-    ctx.globalAlpha = touch.isSprinting ? 0.6 : 0.3;
+    ctx.globalAlpha = touch.isSprinting ? 0.7 : 0.4;
     ctx.fillStyle = touch.isSprinting ? '#FF5722' : '#ffffff';
     ctx.beginPath();
     ctx.arc(sprintX, sprintY, sprintRadius, 0, Math.PI * 2);
     ctx.fill();
 
     // Button border
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.6;
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * s;
     ctx.beginPath();
     ctx.arc(sprintX, sprintY, sprintRadius, 0, Math.PI * 2);
     ctx.stroke();
 
     // Sprint icon
-    ctx.globalAlpha = 0.9;
-    ctx.font = 'bold 28px Arial';
+    ctx.globalAlpha = 0.95;
+    ctx.font = `bold ${Math.max(16, 22 * s * mobileBoost)}px Arial`;
     ctx.fillStyle = touch.isSprinting ? '#ffffff' : '#333333';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -316,83 +368,85 @@ function drawTouchControls() {
     // Mobile hint text (show briefly at start)
     if (gameState.time < 3) {
         ctx.globalAlpha = Math.max(0, 1 - gameState.time / 3);
-        ctx.font = 'bold 20px Arial';
+        ctx.font = `bold ${Math.max(14, 18 * s)}px Arial`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
-        ctx.fillText('Dra for å bevege', canvas.width / 2, canvas.height - 40);
+        ctx.fillText('Dra for å bevege', canvas.width / 2, canvas.height - 30 * s);
     }
 
     ctx.restore();
 }
 
 function drawUI() {
+    const s = gameScale;
+
     // Get theme name
     const themeIndex = Math.min(gameState.level - 1, LEVEL_THEMES.length - 1);
     const theme = LEVEL_THEMES[themeIndex];
 
     // Score
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 24px Arial';
+    ctx.font = `bold ${Math.max(18, 24 * s)}px Arial`;
     ctx.textAlign = 'left';
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 4;
-    ctx.fillText(`⭐ ${gameState.score}`, 20, 40);
+    ctx.shadowBlur = 4 * s;
+    ctx.fillText(`⭐ ${gameState.score}`, 15 * s, 35 * s);
 
     // Level with theme name
     ctx.textAlign = 'center';
-    ctx.fillText(`Nivå ${gameState.level}: ${theme.name}`, canvas.width / 2, 40);
+    ctx.fillText(`Nivå ${gameState.level}: ${theme.name}`, canvas.width / 2, 35 * s);
 
     // Banana progress bar
     ctx.shadowBlur = 0;
-    const progressWidth = 180;
-    const progressHeight = 24;
-    const progressX = canvas.width - progressWidth - 20;
-    const progressY = 20;
+    const progressWidth = 160 * s;
+    const progressHeight = 22 * s;
+    const progressX = canvas.width - progressWidth - 15 * s;
+    const progressY = 15 * s;
 
     // Background
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.beginPath();
-    ctx.roundRect(progressX, progressY, progressWidth, progressHeight, 12);
+    ctx.roundRect(progressX, progressY, progressWidth, progressHeight, 10 * s);
     ctx.fill();
 
     // Progress fill
     const progress = gameState.bananasCollected / BANANAS_REQUIRED;
     ctx.fillStyle = progress >= 1 ? '#FFD700' : '#FFA500';
     ctx.beginPath();
-    ctx.roundRect(progressX + 2, progressY + 2, (progressWidth - 4) * Math.min(progress, 1), progressHeight - 4, 10);
+    ctx.roundRect(progressX + 2 * s, progressY + 2 * s, (progressWidth - 4 * s) * Math.min(progress, 1), progressHeight - 4 * s, 8 * s);
     ctx.fill();
 
     // Banana icon and text
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 16px Arial';
+    ctx.font = `bold ${Math.max(12, 14 * s)}px Arial`;
     ctx.textAlign = 'center';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
-    ctx.shadowBlur = 2;
-    ctx.fillText(`🍌 ${gameState.bananasCollected}/${BANANAS_REQUIRED}`, progressX + progressWidth / 2, progressY + 17);
+    ctx.shadowBlur = 2 * s;
+    ctx.fillText(`🍌 ${gameState.bananasCollected}/${BANANAS_REQUIRED}`, progressX + progressWidth / 2, progressY + progressHeight * 0.7);
 
     // High score
-    ctx.font = '16px Arial';
+    ctx.font = `${Math.max(12, 14 * s)}px Arial`;
     ctx.textAlign = 'left';
-    ctx.shadowBlur = 4;
-    ctx.fillText(`Rekord: ${gameState.highScore}`, 20, 70);
+    ctx.shadowBlur = 4 * s;
+    ctx.fillText(`Rekord: ${gameState.highScore}`, 15 * s, 60 * s);
 
     // Invincibility indicator
     if (gameState.invincibleTimer > 0) {
-        ctx.font = 'bold 18px Arial';
+        ctx.font = `bold ${Math.max(14, 16 * s)}px Arial`;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#00FF00';
         const pulse = Math.sin(Date.now() / 100) * 0.3 + 0.7;
         ctx.globalAlpha = pulse;
-        ctx.fillText('🛡️ USYNLIG', canvas.width / 2, 70);
+        ctx.fillText('🛡️ USYNLIG', canvas.width / 2, 60 * s);
         ctx.globalAlpha = 1;
     }
 
     // Stamina bar
     ctx.shadowBlur = 0;
-    const barWidth = 150;
-    const barHeight = 10;
-    const barX = canvas.width - barWidth - 20;
-    const barY = 55;
+    const barWidth = 130 * s;
+    const barHeight = 8 * s;
+    const barX = canvas.width - barWidth - 15 * s;
+    const barY = 45 * s;
 
     ctx.fillStyle = '#333';
     ctx.fillRect(barX, barY, barWidth, barHeight);
@@ -404,28 +458,30 @@ function drawUI() {
     ctx.strokeStyle = '#555';
     ctx.strokeRect(barX, barY, barWidth, barHeight);
 
-    ctx.font = '12px Arial';
+    ctx.font = `${Math.max(10, 11 * s)}px Arial`;
     ctx.fillStyle = 'white';
     ctx.textAlign = 'right';
-    ctx.fillText('Sprint', barX - 5, barY + 9);
+    ctx.fillText('Sprint', barX - 4 * s, barY + barHeight * 0.85);
 }
 
 function drawMenu() {
     drawBackground();
+
+    const s = gameScale;
 
     // Darken overlay
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur = 6 * s;
 
-    // Responsive font sizes
+    // Responsive font sizes - scale with canvas but have minimums
     const isMobile = touch.isMobile;
-    const titleSize = isMobile ? 42 : 56;
-    const subtitleSize = isMobile ? 20 : 24;
-    const textSize = isMobile ? 16 : 20;
-    const promptSize = isMobile ? 22 : 28;
+    const titleSize = Math.max(28, (isMobile ? 42 : 52) * s);
+    const subtitleSize = Math.max(16, (isMobile ? 18 : 22) * s);
+    const textSize = Math.max(13, (isMobile ? 14 : 18) * s);
+    const promptSize = Math.max(18, (isMobile ? 20 : 26) * s);
 
     // Title
     ctx.fillStyle = 'white';
@@ -436,29 +492,29 @@ function drawMenu() {
     // Subtitle
     ctx.font = `${subtitleSize}px Arial`;
     ctx.fillStyle = '#FFD700';
-    ctx.fillText('Rømm fra trollet!', canvas.width / 2, canvas.height * 0.25);
+    ctx.fillText('Rømm fra trollet!', canvas.width / 2, canvas.height * 0.26);
 
     // Instructions - different for mobile vs desktop
     ctx.font = `${textSize}px Arial`;
     ctx.fillStyle = 'white';
 
     if (isMobile) {
-        ctx.fillText('👆 Dra fingeren for å bevege apen', canvas.width / 2, canvas.height * 0.38);
-        ctx.fillText('🔴 Trykk SPRINT-knappen for fart', canvas.width / 2, canvas.height * 0.45);
-        ctx.fillText('🍌 Samle 10 bananer!', canvas.width / 2, canvas.height * 0.52);
-        ctx.fillText('👹 Unngå trollet!', canvas.width / 2, canvas.height * 0.59);
+        ctx.fillText('👆 Dra fingeren for å bevege', canvas.width / 2, canvas.height * 0.38);
+        ctx.fillText('🔴 Trykk SPRINT for fart', canvas.width / 2, canvas.height * 0.46);
+        ctx.fillText('🍌 Samle 10 bananer!', canvas.width / 2, canvas.height * 0.54);
+        ctx.fillText('👹 Unngå trollet!', canvas.width / 2, canvas.height * 0.62);
     } else {
-        ctx.fillText('🖱️ Mus = Apen følger pekeren', canvas.width / 2, canvas.height * 0.35);
-        ctx.fillText('⬆️⬇️⬅️➡️ eller WASD = Tastaturkontroll', canvas.width / 2, canvas.height * 0.41);
-        ctx.fillText('🖱️ Klikk / SHIFT = Sprint', canvas.width / 2, canvas.height * 0.47);
-        ctx.fillText('🍌 Samle 10 bananer for å fullføre nivået!', canvas.width / 2, canvas.height * 0.53);
-        ctx.fillText('👹 Unngå trollet!', canvas.width / 2, canvas.height * 0.59);
+        ctx.fillText('🖱️ Mus = Apen følger pekeren', canvas.width / 2, canvas.height * 0.36);
+        ctx.fillText('⬆️⬇️⬅️➡️ eller WASD = Tastaturkontroll', canvas.width / 2, canvas.height * 0.43);
+        ctx.fillText('🖱️ Klikk / SHIFT = Sprint', canvas.width / 2, canvas.height * 0.50);
+        ctx.fillText('🍌 Samle 10 bananer for å fullføre!', canvas.width / 2, canvas.height * 0.57);
+        ctx.fillText('👹 Unngå trollet!', canvas.width / 2, canvas.height * 0.64);
     }
 
     // High score
     if (gameState.highScore > 0) {
         ctx.fillStyle = '#FFD700';
-        ctx.fillText(`🏆 Rekord: ${gameState.highScore}`, canvas.width / 2, canvas.height * 0.68);
+        ctx.fillText(`🏆 Rekord: ${gameState.highScore}`, canvas.width / 2, canvas.height * 0.72);
     }
 
     // Start prompt
@@ -466,7 +522,7 @@ function drawMenu() {
     ctx.fillStyle = '#4CAF50';
     const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
     ctx.globalAlpha = pulse;
-    ctx.fillText(isMobile ? 'Trykk for å starte' : 'Trykk SPACE for å starte', canvas.width / 2, canvas.height * 0.82);
+    ctx.fillText(isMobile ? 'Trykk for å starte' : 'Trykk SPACE for å starte', canvas.width / 2, canvas.height * 0.84);
     ctx.globalAlpha = 1;
 
     ctx.shadowBlur = 0;
@@ -474,6 +530,8 @@ function drawMenu() {
 
 function drawLevelComplete() {
     drawBackground();
+
+    const s = gameScale;
 
     // Draw particles
     drawParticles();
@@ -490,23 +548,23 @@ function drawLevelComplete() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur = 6 * s;
 
     // Title
     ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 56px Arial';
+    ctx.font = `bold ${Math.max(28, 48 * s)}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('🎉 NIVÅ FULLFØRT! 🎉', canvas.width / 2, 180);
+    ctx.fillText('🎉 NIVÅ FULLFØRT! 🎉', canvas.width / 2, canvas.height * 0.22);
 
     // Current theme
     const currentTheme = LEVEL_THEMES[Math.min(gameState.level - 1, LEVEL_THEMES.length - 1)];
-    ctx.font = '24px Arial';
+    ctx.font = `${Math.max(16, 22 * s)}px Arial`;
     ctx.fillStyle = 'white';
-    ctx.fillText(`${currentTheme.name} fullført!`, canvas.width / 2, 240);
+    ctx.fillText(`${currentTheme.name} fullført!`, canvas.width / 2, canvas.height * 0.32);
 
     // Stats
-    ctx.font = '28px Arial';
-    ctx.fillText(`Poeng: ${gameState.score}`, canvas.width / 2, 300);
+    ctx.font = `${Math.max(18, 26 * s)}px Arial`;
+    ctx.fillText(`Poeng: ${gameState.score}`, canvas.width / 2, canvas.height * 0.42);
 
     // Next level preview
     const nextThemeIndex = Math.min(gameState.level, LEVEL_THEMES.length - 1);
@@ -514,30 +572,32 @@ function drawLevelComplete() {
     const nextLevel = LEVELS[Math.min(gameState.level, LEVELS.length - 1)];
 
     ctx.fillStyle = '#87CEEB';
-    ctx.font = '22px Arial';
-    ctx.fillText(`Neste: Nivå ${gameState.level + 1} - ${nextTheme.name}`, canvas.width / 2, 360);
-    ctx.font = '18px Arial';
+    ctx.font = `${Math.max(14, 20 * s)}px Arial`;
+    ctx.fillText(`Neste: Nivå ${gameState.level + 1} - ${nextTheme.name}`, canvas.width / 2, canvas.height * 0.52);
+    ctx.font = `${Math.max(12, 16 * s)}px Arial`;
     ctx.fillStyle = '#FFB6C1';
-    ctx.fillText(`${nextLevel.trollCount} troll${nextLevel.trollCount > 1 ? '' : ''}`, canvas.width / 2, 390);
+    ctx.fillText(`${nextLevel.trollCount} troll`, canvas.width / 2, canvas.height * 0.58);
 
     // Next level prompt
-    ctx.font = 'bold 24px Arial';
+    ctx.font = `bold ${Math.max(18, 22 * s)}px Arial`;
     ctx.fillStyle = '#4CAF50';
     const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
     ctx.globalAlpha = pulse;
-    ctx.fillText(touch.isMobile ? 'Trykk for å fortsette' : 'Trykk SPACE for å fortsette', canvas.width / 2, 460);
+    ctx.fillText(touch.isMobile ? 'Trykk for å fortsette' : 'Trykk SPACE for å fortsette', canvas.width / 2, canvas.height * 0.72);
     ctx.globalAlpha = 1;
 
     ctx.shadowBlur = 0;
 }
 
 function drawGameOver() {
+    const s = gameScale;
+
     // Apply screen shake
     if (gameState.screenShake > 0) {
         ctx.save();
         ctx.translate(
-            (Math.random() - 0.5) * gameState.screenShake,
-            (Math.random() - 0.5) * gameState.screenShake
+            (Math.random() - 0.5) * gameState.screenShake * s,
+            (Math.random() - 0.5) * gameState.screenShake * s
         );
     }
 
@@ -562,36 +622,36 @@ function drawGameOver() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur = 6 * s;
 
-    // Title with shake effect
+    // Title
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 56px Arial';
+    ctx.font = `bold ${Math.max(28, 48 * s)}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('💀 TATT! 💀', canvas.width / 2, 180);
+    ctx.fillText('💀 TATT! 💀', canvas.width / 2, canvas.height * 0.22);
 
     // Current theme
     const theme = LEVEL_THEMES[Math.min(gameState.level - 1, LEVEL_THEMES.length - 1)];
 
     // Stats
-    ctx.font = '28px Arial';
-    ctx.fillText(`Sluttpoeng: ${gameState.score}`, canvas.width / 2, 260);
-    ctx.fillText(`🍌 Bananer: ${gameState.bananasCollected}/${BANANAS_REQUIRED}`, canvas.width / 2, 305);
-    ctx.fillText(`Nivå ${gameState.level}: ${theme.name}`, canvas.width / 2, 350);
+    ctx.font = `${Math.max(16, 24 * s)}px Arial`;
+    ctx.fillText(`Sluttpoeng: ${gameState.score}`, canvas.width / 2, canvas.height * 0.34);
+    ctx.fillText(`🍌 Bananer: ${gameState.bananasCollected}/${BANANAS_REQUIRED}`, canvas.width / 2, canvas.height * 0.42);
+    ctx.fillText(`Nivå ${gameState.level}: ${theme.name}`, canvas.width / 2, canvas.height * 0.50);
 
     // New high score?
     if (gameState.score === gameState.highScore && gameState.score > 0) {
         ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 32px Arial';
-        ctx.fillText('🏆 NY REKORD! 🏆', canvas.width / 2, 410);
+        ctx.font = `bold ${Math.max(20, 28 * s)}px Arial`;
+        ctx.fillText('🏆 NY REKORD! 🏆', canvas.width / 2, canvas.height * 0.60);
     }
 
     // Restart prompt
-    ctx.font = 'bold 24px Arial';
+    ctx.font = `bold ${Math.max(18, 22 * s)}px Arial`;
     ctx.fillStyle = '#4CAF50';
     const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
     ctx.globalAlpha = pulse;
-    ctx.fillText(touch.isMobile ? 'Trykk for å prøve igjen' : 'Trykk SPACE for å prøve igjen', canvas.width / 2, 480);
+    ctx.fillText(touch.isMobile ? 'Trykk for å prøve igjen' : 'Trykk SPACE for å prøve igjen', canvas.width / 2, canvas.height * 0.75);
     ctx.globalAlpha = 1;
 
     ctx.shadowBlur = 0;
@@ -599,6 +659,8 @@ function drawGameOver() {
 
 function drawPlaying() {
     drawBackground();
+
+    const s = gameScale;
 
     // Draw bananas
     bananas.forEach(b => b.draw(ctx));
@@ -612,9 +674,9 @@ function drawPlaying() {
             ctx.globalAlpha = 1;
             // Draw shield effect
             ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 3 * s;
             ctx.beginPath();
-            ctx.arc(monkey.x, monkey.y, monkey.radius + 10, 0, Math.PI * 2);
+            ctx.arc(monkey.x, monkey.y, monkey.radius + 8 * s, 0, Math.PI * 2);
             ctx.stroke();
         } else {
             monkey.draw(ctx);
