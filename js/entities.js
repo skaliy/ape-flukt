@@ -128,6 +128,7 @@ class Troll {
         this.baseSpeed = 2.5;
         this.emoji = '👹';
         this.predictionFactor = 0;
+        this.frozenTimer = 0;
     }
 
     get radius() {
@@ -142,7 +143,23 @@ class Troll {
         return this.baseSpeed * (window.gameScale || 1);
     }
 
+    get isFrozen() {
+        return this.frozenTimer > 0;
+    }
+
+    freeze(duration = 180) {
+        this.frozenTimer = duration; // 3 seconds at 60fps
+    }
+
     update(monkey, canvas) {
+        // Handle frozen state
+        if (this.frozenTimer > 0) {
+            this.frozenTimer--;
+            this.vx = 0;
+            this.vy = 0;
+            return; // Don't move while frozen
+        }
+
         // Predict where monkey will be
         const predictedX = monkey.x + monkey.vx * this.predictionFactor;
         const predictedY = monkey.y + monkey.vy * this.predictionFactor;
@@ -169,6 +186,35 @@ class Troll {
 
     draw(ctx, monkey = null) {
         const s = window.gameScale || 1;
+
+        // Frozen effect
+        if (this.frozenTimer > 0) {
+            // Ice glow
+            ctx.shadowColor = 'rgba(135, 206, 235, 0.9)';
+            ctx.shadowBlur = 20 * s;
+
+            // Draw ice block behind troll
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = '#ADD8E6';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 8 * s, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            // Draw troll with blue tint
+            ctx.font = `${this.radius * 2}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🥶', this.x, this.y);
+
+            // Ice crystals around
+            ctx.font = `${14 * s}px Arial`;
+            ctx.fillText('❄️', this.x - this.radius, this.y - this.radius * 0.8);
+            ctx.fillText('❄️', this.x + this.radius, this.y - this.radius * 0.8);
+
+            ctx.shadowBlur = 0;
+            return;
+        }
 
         // Calculate danger level based on distance to monkey
         let dangerGlow = 0;
@@ -287,103 +333,85 @@ class Banana {
     }
 }
 
-// Bomb class
-class Bomb {
+// Freeze trap class - freezes troll when it hits
+class FreezeTrap {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.timer = 90; // 1.5 seconds at 60fps
-        this.exploded = false;
-        this.explosionTimer = 0;
-        this.explosionRadius = 120;
-        this.baseRadius = 18;
+        this.triggered = false;
+        this.effectTimer = 0;
+        this.baseRadius = 22;
+        this.pulseOffset = Math.random() * Math.PI * 2;
     }
 
     get radius() {
         return this.baseRadius * (window.gameScale || 1);
     }
 
-    get scaledExplosionRadius() {
-        return this.explosionRadius * (window.gameScale || 1);
-    }
-
     update() {
-        if (this.exploded) {
-            this.explosionTimer--;
-            return this.explosionTimer > 0;
+        if (this.triggered) {
+            this.effectTimer--;
+            return this.effectTimer > 0;
         }
-
-        this.timer--;
-        if (this.timer <= 0) {
-            this.exploded = true;
-            this.explosionTimer = 30; // Explosion lasts 0.5 seconds
-        }
+        this.pulseOffset += 0.08;
         return true;
     }
 
-    // Check if explosion hits a troll
-    hitsEntity(entity) {
-        if (!this.exploded) return false;
+    // Trigger freeze effect
+    trigger() {
+        if (!this.triggered) {
+            this.triggered = true;
+            this.effectTimer = 20; // Short visual effect
+        }
+    }
+
+    // Check if troll touches the trap
+    touchesEntity(entity) {
+        if (this.triggered) return false;
         const dx = entity.x - this.x;
         const dy = entity.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        return distance < this.scaledExplosionRadius + entity.radius;
+        return distance < this.radius + entity.radius;
     }
 
     draw(ctx) {
         const s = window.gameScale || 1;
 
-        if (this.exploded) {
-            // Draw explosion
-            const progress = 1 - (this.explosionTimer / 30);
-            const currentRadius = this.scaledExplosionRadius * (0.5 + progress * 0.5);
+        if (this.triggered) {
+            // Draw freeze burst effect
+            const progress = 1 - (this.effectTimer / 20);
+            const burstRadius = 60 * s * (0.5 + progress * 0.5);
 
-            // Outer glow
+            // Ice burst
             ctx.globalAlpha = 0.6 * (1 - progress);
-            ctx.fillStyle = '#FF4500';
+            ctx.fillStyle = '#87CEEB';
             ctx.beginPath();
-            ctx.arc(this.x, this.y, currentRadius, 0, Math.PI * 2);
+            ctx.arc(this.x, this.y, burstRadius, 0, Math.PI * 2);
             ctx.fill();
 
-            // Inner flash
-            ctx.globalAlpha = 0.8 * (1 - progress);
-            ctx.fillStyle = '#FFD700';
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, currentRadius * 0.6, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Explosion emoji
+            // Snowflake emoji
             ctx.globalAlpha = 1 - progress;
-            ctx.font = `${40 * s}px Arial`;
+            ctx.font = `${35 * s}px Arial`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('💥', this.x, this.y);
+            ctx.fillText('❄️', this.x, this.y);
 
             ctx.globalAlpha = 1;
         } else {
-            // Draw bomb with pulsing effect
-            const pulse = Math.sin(this.timer * 0.3) * 0.2 + 1;
-            const bombSize = this.radius * 2 * pulse;
+            // Draw freeze trap with gentle pulsing effect
+            const pulse = Math.sin(this.pulseOffset) * 0.15 + 1;
+            const trapSize = this.radius * 2 * pulse;
 
-            // Warning glow when about to explode
-            if (this.timer < 30) {
-                ctx.globalAlpha = 0.5 * (1 - this.timer / 30);
-                ctx.fillStyle = '#FF0000';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius * 3, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
-            }
+            // Ice glow
+            ctx.shadowColor = 'rgba(135, 206, 235, 0.7)';
+            ctx.shadowBlur = 12 * s;
 
-            ctx.font = `${bombSize}px Arial`;
+            ctx.font = `${trapSize}px Arial`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('💣', this.x, this.y);
+            ctx.fillText('🧊', this.x, this.y);
 
-            // Timer indicator
-            ctx.font = `bold ${12 * s}px Arial`;
-            ctx.fillStyle = this.timer < 30 ? '#FF0000' : '#FFFFFF';
-            ctx.fillText(Math.ceil(this.timer / 60).toString(), this.x, this.y - this.radius - 10 * s);
+            ctx.shadowBlur = 0;
         }
     }
 }

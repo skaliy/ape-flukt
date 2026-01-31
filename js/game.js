@@ -106,8 +106,8 @@ const gameState = {
     invincibleTimer: 0,
     particles: [],
     screenShake: 0,
-    bombs: [],
-    bombsRemaining: 3
+    freezeTraps: [],
+    trapsRemaining: 3
 };
 
 // Game objects
@@ -154,8 +154,8 @@ function loadLevel(levelNum) {
     gameState.invincibleTimer = 120; // 2 seconds of invincibility at level start
     gameState.particles = [];
     gameState.screenShake = 0;
-    gameState.bombs = [];
-    gameState.bombsRemaining = 3;
+    gameState.freezeTraps = [];
+    gameState.trapsRemaining = 3;
 }
 
 function startGame() {
@@ -208,50 +208,38 @@ function updateParticles() {
     });
 }
 
-// Bomb placement function
-function placeBomb() {
+// Freeze trap placement function
+function placeFreezeTrap() {
     if (gameState.status !== 'playing') return;
-    if (gameState.bombsRemaining <= 0) return;
+    if (gameState.trapsRemaining <= 0) return;
 
-    // Create bomb at monkey's position
-    const bomb = new Bomb(monkey.x, monkey.y);
-    gameState.bombs.push(bomb);
-    gameState.bombsRemaining--;
+    // Create freeze trap at monkey's position
+    const trap = new FreezeTrap(monkey.x, monkey.y);
+    gameState.freezeTraps.push(trap);
+    gameState.trapsRemaining--;
 
     // Visual feedback
-    createParticles(monkey.x, monkey.y, '💣', 3);
+    createParticles(monkey.x, monkey.y, '🧊', 3);
 }
 
-// Update bombs and check collisions with trolls
-function updateBombs() {
-    const s = gameScale;
-
-    // Update all bombs and remove inactive ones
-    gameState.bombs = gameState.bombs.filter(bomb => {
-        const isActive = bomb.update();
-
-        // Check if explosion hits any trolls
-        if (bomb.exploded) {
-            trolls.forEach(troll => {
-                if (bomb.hitsEntity(troll)) {
-                    // Stun troll by pushing it away
-                    const dx = troll.x - bomb.x;
-                    const dy = troll.y - bomb.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance > 0) {
-                        const pushForce = 150 * s;
-                        troll.x += (dx / distance) * pushForce;
-                        troll.y += (dy / distance) * pushForce;
-                        // Keep troll in bounds
-                        troll.x = Math.max(troll.radius, Math.min(canvas.width - troll.radius, troll.x));
-                        troll.y = Math.max(troll.radius, Math.min(canvas.height - troll.radius, troll.y));
-                    }
-                    createParticles(troll.x, troll.y, '💫', 5);
+// Update freeze traps and check collisions with trolls
+function updateFreezeTraps() {
+    // Update all traps and remove inactive ones
+    gameState.freezeTraps = gameState.freezeTraps.filter(trap => {
+        // Check if any troll touches the trap (triggers freeze)
+        if (!trap.triggered) {
+            for (const troll of trolls) {
+                if (trap.touchesEntity(troll)) {
+                    trap.trigger();
+                    troll.freeze(180); // Freeze for 3 seconds
+                    createParticles(troll.x, troll.y, '❄️', 8);
+                    createParticles(troll.x, troll.y, '🧊', 4);
+                    break;
                 }
-            });
+            }
         }
 
-        return isActive;
+        return trap.update();
     });
 }
 
@@ -287,8 +275,8 @@ function update(dt) {
         // Update particles
         updateParticles();
 
-        // Update bombs
-        updateBombs();
+        // Update freeze traps
+        updateFreezeTraps();
 
         // Check banana collection
         bananas.forEach(banana => {
@@ -522,20 +510,20 @@ function drawUI() {
     ctx.textAlign = 'right';
     ctx.fillText('Sprint', barX - 4 * s, barY + barHeight * 0.85);
 
-    // Bomb count display
+    // Freeze trap count display
     ctx.font = `bold ${Math.max(14, 18 * s)}px Arial`;
     ctx.textAlign = 'left';
-    ctx.fillStyle = gameState.bombsRemaining > 0 ? '#FFD700' : '#666';
+    ctx.fillStyle = gameState.trapsRemaining > 0 ? '#87CEEB' : '#666';
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
     ctx.shadowBlur = 4 * s;
-    ctx.fillText(`💣 ${gameState.bombsRemaining}`, 15 * s, 85 * s);
+    ctx.fillText(`🧊 ${gameState.trapsRemaining}`, 15 * s, 85 * s);
 
-    // Hint for bomb use (brief)
-    if (gameState.time < 5 && gameState.bombsRemaining > 0) {
+    // Hint for freeze trap use (brief)
+    if (gameState.time < 6 && gameState.trapsRemaining > 0) {
         ctx.font = `${Math.max(10, 12 * s)}px Arial`;
         ctx.fillStyle = '#aaa';
-        ctx.globalAlpha = Math.max(0, 1 - gameState.time / 5);
-        ctx.fillText(touch.isMobile ? 'Dobbelt-trykk = bombe' : 'SPACE = bombe', 15 * s, 100 * s);
+        ctx.globalAlpha = Math.max(0, 1 - gameState.time / 6);
+        ctx.fillText(touch.isMobile ? 'Dobbelt-trykk = frys-felle' : 'SPACE = frys-felle', 15 * s, 100 * s);
         ctx.globalAlpha = 1;
     }
     ctx.shadowBlur = 0;
@@ -772,8 +760,8 @@ function drawPlaying() {
     // Draw trolls (with danger glow)
     trolls.forEach(t => t.draw(ctx, monkey));
 
-    // Draw bombs
-    gameState.bombs.forEach(bomb => bomb.draw(ctx));
+    // Draw freeze traps
+    gameState.freezeTraps.forEach(trap => trap.draw(ctx));
 
     // Draw particles
     drawParticles();
@@ -815,8 +803,8 @@ function handleInput() {
                 startGame();
                 break;
             case 'playing':
-                // Space places bomb during gameplay
-                placeBomb();
+                // Space places freeze trap during gameplay
+                placeFreezeTrap();
                 break;
             case 'levelComplete':
                 nextLevel();
