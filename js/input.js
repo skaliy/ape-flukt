@@ -75,18 +75,7 @@ gameCanvas.addEventListener('mouseenter', (e) => {
     mouse.y = (e.clientY - rect.top) * scaleY;
 });
 
-// Helper function to get sprint button zone size (synced with drawTouchControls)
-function getSprintZoneSize() {
-    const s = window.gameScale || 1;
-    const isPortrait = window.isPortraitMode || false;
-    const mobileBoost = isPortrait ? 1.6 : 1.3;
-    const sprintRadius = (isPortrait ? 45 : 50) * s * mobileBoost;
-    const sprintMargin = 15 * s;
-    // Make touch zone slightly larger than visual button for easier tapping
-    return (sprintRadius + sprintMargin) * 1.3;
-}
-
-// Touch events (mobile)
+// Touch events (mobile) - no sprint button, sprint is automatic when joystick is fully pushed
 gameCanvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     const rect = gameCanvas.getBoundingClientRect();
@@ -98,19 +87,13 @@ gameCanvas.addEventListener('touchstart', (e) => {
         const x = (touchPoint.clientX - rect.left) * scaleX;
         const y = (touchPoint.clientY - rect.top) * scaleY;
 
-        // Check if touching sprint button area (bottom right) - scaled zone
-        const sprintZone = getSprintZoneSize();
-        if (x > gameCanvas.width - sprintZone && y > gameCanvas.height - sprintZone) {
-            touch.isSprinting = true;
-        } else {
-            // Start joystick
-            touch.active = true;
-            touch.joystickActive = true;
-            touch.startX = x;
-            touch.startY = y;
-            touch.currentX = x;
-            touch.currentY = y;
-        }
+        // Start joystick anywhere on screen
+        touch.active = true;
+        touch.joystickActive = true;
+        touch.startX = x;
+        touch.startY = y;
+        touch.currentX = x;
+        touch.currentY = y;
     }
 
     // Also activate space for menu/restart
@@ -129,25 +112,25 @@ gameCanvas.addEventListener('touchmove', (e) => {
         const x = (touchPoint.clientX - rect.left) * scaleX;
         const y = (touchPoint.clientY - rect.top) * scaleY;
 
-        // Check if this touch is on sprint button - scaled zone
-        const sprintZone = getSprintZoneSize();
-        if (x > gameCanvas.width - sprintZone && y > gameCanvas.height - sprintZone) {
-            touch.isSprinting = true;
-        } else if (touch.joystickActive) {
+        if (touch.joystickActive) {
             touch.currentX = x;
             touch.currentY = y;
 
-            // Calculate joystick direction - scaled max distance
+            // Calculate joystick direction
             const s = window.gameScale || 1;
             const dx = touch.currentX - touch.startX;
             const dy = touch.currentY - touch.startY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             const maxDistance = 70 * s;
+            const sprintThreshold = 55 * s; // Sprint when pushed past this distance
 
             if (distance > 0) {
                 const clampedDistance = Math.min(distance, maxDistance);
                 touch.joystickX = (dx / distance) * (clampedDistance / maxDistance);
                 touch.joystickY = (dy / distance) * (clampedDistance / maxDistance);
+
+                // Auto-sprint when joystick is pushed far enough
+                touch.isSprinting = distance >= sprintThreshold;
             }
         }
     }
@@ -156,42 +139,15 @@ gameCanvas.addEventListener('touchmove', (e) => {
 gameCanvas.addEventListener('touchend', (e) => {
     e.preventDefault();
 
-    // Check remaining touches
+    // When all touches end, reset everything
     if (e.touches.length === 0) {
         touch.active = false;
         touch.joystickActive = false;
         touch.joystickX = 0;
         touch.joystickY = 0;
         touch.isSprinting = false;
-    } else {
-        // Check if sprint finger was lifted
-        const rect = gameCanvas.getBoundingClientRect();
-        const scaleX = gameCanvas.width / rect.width;
-        const scaleY = gameCanvas.height / rect.height;
-
-        let sprintTouchFound = false;
-        let joystickTouchFound = false;
-
-        const sprintZone = getSprintZoneSize();
-        for (let i = 0; i < e.touches.length; i++) {
-            const touchPoint = e.touches[i];
-            const x = (touchPoint.clientX - rect.left) * scaleX;
-            const y = (touchPoint.clientY - rect.top) * scaleY;
-
-            if (x > gameCanvas.width - sprintZone && y > gameCanvas.height - sprintZone) {
-                sprintTouchFound = true;
-            } else {
-                joystickTouchFound = true;
-            }
-        }
-
-        touch.isSprinting = sprintTouchFound;
-        if (!joystickTouchFound) {
-            touch.joystickActive = false;
-            touch.joystickX = 0;
-            touch.joystickY = 0;
-        }
     }
+    // If there are still touches, keep joystick active
 }, { passive: false });
 
 gameCanvas.addEventListener('touchcancel', (e) => {

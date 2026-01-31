@@ -335,7 +335,6 @@ function drawTouchControls() {
     if (!touch.isMobile) return;
 
     const s = gameScale;
-    // Make controls larger on mobile for easier touch - bigger for portrait
     const mobileBoost = isPortraitMode ? 1.6 : 1.3;
 
     ctx.save();
@@ -354,9 +353,9 @@ function drawTouchControls() {
         ctx.arc(touch.startX, touch.startY, joystickRadius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Direction indicator
+        // Direction indicator - changes color when sprinting (joystick fully pushed)
         ctx.globalAlpha = 0.6;
-        ctx.fillStyle = '#4CAF50';
+        ctx.fillStyle = touch.isSprinting ? '#FF5722' : '#4CAF50';
         const knobX = touch.startX + touch.joystickX * knobDistance;
         const knobY = touch.startY + touch.joystickY * knobDistance;
         ctx.beginPath();
@@ -371,42 +370,13 @@ function drawTouchControls() {
         ctx.fill();
     }
 
-    // Draw sprint button (bottom right) - larger for portrait mode
-    const sprintRadius = (isPortraitMode ? 45 : 50) * s * mobileBoost;
-    const sprintMargin = 15 * s;
-    const sprintX = canvas.width - sprintRadius - sprintMargin;
-    const sprintY = canvas.height - sprintRadius - sprintMargin - (isPortraitMode ? 20 * s : 0);
-
-    // Button background
-    ctx.globalAlpha = touch.isSprinting ? 0.7 : 0.4;
-    ctx.fillStyle = touch.isSprinting ? '#FF5722' : '#ffffff';
-    ctx.beginPath();
-    ctx.arc(sprintX, sprintY, sprintRadius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Button border
-    ctx.globalAlpha = 0.6;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3 * s;
-    ctx.beginPath();
-    ctx.arc(sprintX, sprintY, sprintRadius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Sprint icon
-    ctx.globalAlpha = 0.95;
-    ctx.font = `bold ${Math.max(14, 18 * s * mobileBoost)}px Arial`;
-    ctx.fillStyle = touch.isSprinting ? '#ffffff' : '#333333';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('SPRINT', sprintX, sprintY);
-
     // Mobile hint text (show briefly at start)
     if (gameState.time < 3) {
         ctx.globalAlpha = Math.max(0, 1 - gameState.time / 3);
         ctx.font = `bold ${Math.max(12, 16 * s)}px Arial`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
-        ctx.fillText('Dra for å bevege', canvas.width / 2, canvas.height - 60 * s);
+        ctx.fillText('Dra for å bevege - dra langt for sprint', canvas.width / 2, canvas.height - 40 * s);
     }
 
     ctx.restore();
@@ -536,12 +506,12 @@ function drawMenu() {
 
     if (portrait) {
         ctx.fillText('👆 Dra for å bevege', canvas.width / 2, canvas.height * 0.28);
-        ctx.fillText('🔴 Trykk SPRINT for fart', canvas.width / 2, canvas.height * 0.34);
+        ctx.fillText('🏃 Dra langt = sprint', canvas.width / 2, canvas.height * 0.34);
         ctx.fillText('🍌 Samle 10 bananer!', canvas.width / 2, canvas.height * 0.40);
         ctx.fillText('👹 Unngå trollet!', canvas.width / 2, canvas.height * 0.46);
     } else if (isMobile) {
         ctx.fillText('👆 Dra fingeren for å bevege', canvas.width / 2, canvas.height * 0.38);
-        ctx.fillText('🔴 Trykk SPRINT for fart', canvas.width / 2, canvas.height * 0.46);
+        ctx.fillText('🏃 Dra langt = sprint', canvas.width / 2, canvas.height * 0.46);
         ctx.fillText('🍌 Samle 10 bananer!', canvas.width / 2, canvas.height * 0.54);
         ctx.fillText('👹 Unngå trollet!', canvas.width / 2, canvas.height * 0.62);
     } else {
