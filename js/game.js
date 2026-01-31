@@ -1014,38 +1014,57 @@ function isInsideButton(x, y, btn) {
     return x >= btn.x && x <= btn.x + btn.width && y >= btn.y && y <= btn.y + btn.height;
 }
 
-// Add click listener for buttons
-canvas.addEventListener('click', (e) => {
+// Handle button clicks (works for both mouse and touch)
+function handleButtonClick(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
-
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
 
     // Name entry: submit and skip buttons
     if (gameState.status === 'enterName') {
         if (isInsideButton(x, y, gameState.submitBtn)) {
             submitScoreWithName();
-            return;
+            return true;
         }
         if (isInsideButton(x, y, gameState.skipBtn)) {
             gameState.playerNameInput = '';
             submitScoreWithName();
-            return;
+            return true;
         }
-        // Clicking the input box on mobile focuses hidden input to trigger keyboard
-        if (touch.isMobile && isInsideButton(x, y, gameState.inputBox)) {
+        // Clicking the input box focuses hidden input to trigger keyboard
+        if (isInsideButton(x, y, gameState.inputBox)) {
             focusMobileNameInput();
-            return;
+            return true;
         }
     }
 
     // Playing: mute button
     if (gameState.status === 'playing') {
-        checkMuteButtonClick(x, y);
+        if (checkMuteButtonClick(x, y)) {
+            return true;
+        }
     }
+
+    return false;
+}
+
+// Click listener for desktop
+canvas.addEventListener('click', (e) => {
+    handleButtonClick(e.clientX, e.clientY);
 });
+
+// Touch listener for mobile buttons (touchend to avoid conflicts)
+canvas.addEventListener('touchend', (e) => {
+    if (gameState.status === 'enterName' && e.changedTouches.length > 0) {
+        const touch = e.changedTouches[0];
+        if (handleButtonClick(touch.clientX, touch.clientY)) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }
+}, { passive: false });
 
 // Handle space key for state transitions and bombs
 let spaceWasPressed = false;
