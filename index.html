@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Ape-Flukt! - Rømm fra Trollet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #gameContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            height: 100%;
+            max-width: 1100px;
+            max-height: 100vh;
+            padding: 10px;
+        }
+
+        #gameCanvas {
+            border: 4px solid #4a4a6a;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(100, 100, 255, 0.3);
+            cursor: crosshair;
+            max-width: 100%;
+            max-height: calc(100vh - 80px);
+            touch-action: none;
+        }
+
+        .game-info {
+            color: #aaa;
+            font-size: 14px;
+            text-align: center;
+            padding: 5px;
+        }
+
+        /* Hide info text on mobile */
+        @media (max-width: 768px) {
+            .game-info {
+                display: none;
+            }
+
+            #gameContainer {
+                padding: 5px;
+                gap: 5px;
+            }
+
+            #gameCanvas {
+                border-width: 2px;
+                border-radius: 8px;
+                max-height: calc(100vh - 20px);
+            }
+        }
+
+        /* Landscape mobile optimization */
+        @media (max-height: 500px) {
+            #gameContainer {
+                padding: 2px;
+            }
+
+            #gameCanvas {
+                max-height: calc(100vh - 10px);
+            }
+
+            .game-info {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <p class="game-info">Mus = Følg peker | Piltaster/WASD = Beveg | Klikk/SHIFT = Sprint | SPACE = Start</p>
+    </div>
+
+    <script src="js/input.js"></script>
+    <script src="js/entities.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
