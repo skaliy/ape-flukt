@@ -1,5 +1,7 @@
 # Ape-Flukt! (Monkey Escape!)
 
+**Play it here: https://ape-flukt.vercel.app/**
+
 A fun weekend project built with my niece!
 
 ## What is this?
