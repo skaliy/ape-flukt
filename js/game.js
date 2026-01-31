@@ -4,8 +4,13 @@ const ctx = canvas.getContext('2d');
 
 // Responsive canvas and scaling
 let gameScale = 1;
-const BASE_WIDTH = 1100;
-const BASE_HEIGHT = 750;
+let isPortraitMode = false;
+
+// Base dimensions - will swap for portrait mode on mobile
+const DESKTOP_WIDTH = 1100;
+const DESKTOP_HEIGHT = 750;
+const MOBILE_WIDTH = 400;
+const MOBILE_HEIGHT = 700;
 
 function resizeCanvas() {
     const container = document.getElementById('gameContainer');
@@ -13,28 +18,36 @@ function resizeCanvas() {
         || ('ontouchstart' in window)
         || (navigator.maxTouchPoints > 0);
 
-    // Use nearly full screen on mobile
     const padding = isMobile ? 4 : 10;
     const availableWidth = container.clientWidth - padding;
     const availableHeight = window.innerHeight - padding;
-    const aspectRatio = BASE_WIDTH / BASE_HEIGHT;
 
-    let width, height;
+    let width, height, baseWidth, baseHeight;
 
     if (isMobile) {
-        // On mobile, prioritize filling the screen
-        // Try width first
+        // Use portrait dimensions for mobile
+        isPortraitMode = true;
+        baseWidth = MOBILE_WIDTH;
+        baseHeight = MOBILE_HEIGHT;
+        const aspectRatio = baseWidth / baseHeight;
+
+        // Try to fill width first
         width = availableWidth;
         height = width / aspectRatio;
 
-        // If height is too big, constrain by height instead
+        // If too tall, constrain by height
         if (height > availableHeight) {
             height = availableHeight;
             width = height * aspectRatio;
         }
     } else {
-        // Desktop: maintain aspect ratio with some margin
-        width = Math.min(availableWidth, BASE_WIDTH);
+        // Desktop: landscape mode
+        isPortraitMode = false;
+        baseWidth = DESKTOP_WIDTH;
+        baseHeight = DESKTOP_HEIGHT;
+        const aspectRatio = baseWidth / baseHeight;
+
+        width = Math.min(availableWidth, baseWidth);
         height = width / aspectRatio;
 
         if (height > availableHeight) {
@@ -44,13 +57,14 @@ function resizeCanvas() {
     }
 
     // Minimum size for playability
-    width = Math.max(width, 300);
-    height = width / aspectRatio;
+    width = Math.max(width, 280);
+    height = width / (baseWidth / baseHeight);
 
     canvas.width = Math.floor(width);
     canvas.height = Math.floor(height);
-    gameScale = width / BASE_WIDTH;
+    gameScale = width / baseWidth;
     window.gameScale = gameScale;
+    window.isPortraitMode = isPortraitMode;
 }
 
 resizeCanvas();
@@ -321,17 +335,17 @@ function drawTouchControls() {
     if (!touch.isMobile) return;
 
     const s = gameScale;
-    // Make controls larger on mobile for easier touch
-    const mobileBoost = 1.3;
+    // Make controls larger on mobile for easier touch - bigger for portrait
+    const mobileBoost = isPortraitMode ? 1.6 : 1.3;
 
     ctx.save();
 
     // Draw joystick base (where touch started)
     if (touch.joystickActive) {
-        const joystickRadius = 60 * s * mobileBoost;
-        const knobRadius = 30 * s * mobileBoost;
-        const innerRadius = 12 * s * mobileBoost;
-        const knobDistance = 45 * s * mobileBoost;
+        const joystickRadius = 55 * s * mobileBoost;
+        const knobRadius = 28 * s * mobileBoost;
+        const innerRadius = 10 * s * mobileBoost;
+        const knobDistance = 40 * s * mobileBoost;
 
         // Outer circle
         ctx.globalAlpha = 0.3;
@@ -357,11 +371,11 @@ function drawTouchControls() {
         ctx.fill();
     }
 
-    // Draw sprint button (bottom right) - larger for mobile
-    const sprintRadius = 50 * s * mobileBoost;
-    const sprintMargin = 20 * s;
+    // Draw sprint button (bottom right) - larger for portrait mode
+    const sprintRadius = (isPortraitMode ? 45 : 50) * s * mobileBoost;
+    const sprintMargin = 15 * s;
     const sprintX = canvas.width - sprintRadius - sprintMargin;
-    const sprintY = canvas.height - sprintRadius - sprintMargin;
+    const sprintY = canvas.height - sprintRadius - sprintMargin - (isPortraitMode ? 20 * s : 0);
 
     // Button background
     ctx.globalAlpha = touch.isSprinting ? 0.7 : 0.4;
@@ -380,7 +394,7 @@ function drawTouchControls() {
 
     // Sprint icon
     ctx.globalAlpha = 0.95;
-    ctx.font = `bold ${Math.max(16, 22 * s * mobileBoost)}px Arial`;
+    ctx.font = `bold ${Math.max(14, 18 * s * mobileBoost)}px Arial`;
     ctx.fillStyle = touch.isSprinting ? '#ffffff' : '#333333';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -389,10 +403,10 @@ function drawTouchControls() {
     // Mobile hint text (show briefly at start)
     if (gameState.time < 3) {
         ctx.globalAlpha = Math.max(0, 1 - gameState.time / 3);
-        ctx.font = `bold ${Math.max(14, 18 * s)}px Arial`;
+        ctx.font = `bold ${Math.max(12, 16 * s)}px Arial`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
-        ctx.fillText('Dra for å bevege', canvas.width / 2, canvas.height - 30 * s);
+        ctx.fillText('Dra for å bevege', canvas.width / 2, canvas.height - 60 * s);
     }
 
     ctx.restore();
@@ -489,6 +503,7 @@ function drawMenu() {
     drawBackground();
 
     const s = gameScale;
+    const portrait = isPortraitMode;
 
     // Darken overlay
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -497,29 +512,34 @@ function drawMenu() {
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 6 * s;
 
-    // Responsive font sizes - scale with canvas but have minimums
+    // Responsive font sizes - bigger for portrait mode
     const isMobile = touch.isMobile;
-    const titleSize = Math.max(28, (isMobile ? 42 : 52) * s);
-    const subtitleSize = Math.max(16, (isMobile ? 18 : 22) * s);
-    const textSize = Math.max(13, (isMobile ? 14 : 18) * s);
-    const promptSize = Math.max(18, (isMobile ? 20 : 26) * s);
+    const titleSize = Math.max(24, (portrait ? 32 : (isMobile ? 42 : 52)) * s);
+    const subtitleSize = Math.max(14, (portrait ? 16 : (isMobile ? 18 : 22)) * s);
+    const textSize = Math.max(12, (portrait ? 13 : (isMobile ? 14 : 18)) * s);
+    const promptSize = Math.max(16, (portrait ? 18 : (isMobile ? 20 : 26)) * s);
 
-    // Title
+    // Title - position based on mode
     ctx.fillStyle = 'white';
     ctx.font = `bold ${titleSize}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('🐵 APE-FLUKT 👹', canvas.width / 2, canvas.height * 0.18);
+    ctx.fillText('🐵 APE-FLUKT 👹', canvas.width / 2, canvas.height * (portrait ? 0.12 : 0.18));
 
     // Subtitle
     ctx.font = `${subtitleSize}px Arial`;
     ctx.fillStyle = '#FFD700';
-    ctx.fillText('Rømm fra trollet!', canvas.width / 2, canvas.height * 0.26);
+    ctx.fillText('Rømm fra trollet!', canvas.width / 2, canvas.height * (portrait ? 0.18 : 0.26));
 
-    // Instructions - different for mobile vs desktop
+    // Instructions - different layout for portrait
     ctx.font = `${textSize}px Arial`;
     ctx.fillStyle = 'white';
 
-    if (isMobile) {
+    if (portrait) {
+        ctx.fillText('👆 Dra for å bevege', canvas.width / 2, canvas.height * 0.28);
+        ctx.fillText('🔴 Trykk SPRINT for fart', canvas.width / 2, canvas.height * 0.34);
+        ctx.fillText('🍌 Samle 10 bananer!', canvas.width / 2, canvas.height * 0.40);
+        ctx.fillText('👹 Unngå trollet!', canvas.width / 2, canvas.height * 0.46);
+    } else if (isMobile) {
         ctx.fillText('👆 Dra fingeren for å bevege', canvas.width / 2, canvas.height * 0.38);
         ctx.fillText('🔴 Trykk SPRINT for fart', canvas.width / 2, canvas.height * 0.46);
         ctx.fillText('🍌 Samle 10 bananer!', canvas.width / 2, canvas.height * 0.54);
@@ -535,7 +555,7 @@ function drawMenu() {
     // High score
     if (gameState.highScore > 0) {
         ctx.fillStyle = '#FFD700';
-        ctx.fillText(`🏆 Rekord: ${gameState.highScore}`, canvas.width / 2, canvas.height * 0.72);
+        ctx.fillText(`🏆 Rekord: ${gameState.highScore}`, canvas.width / 2, canvas.height * (portrait ? 0.54 : 0.72));
     }
 
     // Start prompt
@@ -543,7 +563,7 @@ function drawMenu() {
     ctx.fillStyle = '#4CAF50';
     const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
     ctx.globalAlpha = pulse;
-    ctx.fillText(isMobile ? 'Trykk for å starte' : 'Trykk SPACE for å starte', canvas.width / 2, canvas.height * 0.84);
+    ctx.fillText('Trykk for å starte', canvas.width / 2, canvas.height * (portrait ? 0.65 : 0.84));
     ctx.globalAlpha = 1;
 
     ctx.shadowBlur = 0;
@@ -553,6 +573,7 @@ function drawLevelComplete() {
     drawBackground();
 
     const s = gameScale;
+    const portrait = isPortraitMode;
 
     // Draw particles
     drawParticles();
@@ -573,19 +594,19 @@ function drawLevelComplete() {
 
     // Title
     ctx.fillStyle = '#FFD700';
-    ctx.font = `bold ${Math.max(28, 48 * s)}px Arial`;
+    ctx.font = `bold ${Math.max(22, (portrait ? 28 : 48) * s)}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('🎉 NIVÅ FULLFØRT! 🎉', canvas.width / 2, canvas.height * 0.22);
+    ctx.fillText(portrait ? '🎉 FULLFØRT! 🎉' : '🎉 NIVÅ FULLFØRT! 🎉', canvas.width / 2, canvas.height * (portrait ? 0.15 : 0.22));
 
     // Current theme
     const currentTheme = LEVEL_THEMES[Math.min(gameState.level - 1, LEVEL_THEMES.length - 1)];
-    ctx.font = `${Math.max(16, 22 * s)}px Arial`;
+    ctx.font = `${Math.max(14, (portrait ? 16 : 22) * s)}px Arial`;
     ctx.fillStyle = 'white';
-    ctx.fillText(`${currentTheme.name} fullført!`, canvas.width / 2, canvas.height * 0.32);
+    ctx.fillText(`${currentTheme.name} fullført!`, canvas.width / 2, canvas.height * (portrait ? 0.22 : 0.32));
 
     // Stats
-    ctx.font = `${Math.max(18, 26 * s)}px Arial`;
-    ctx.fillText(`Poeng: ${gameState.score}`, canvas.width / 2, canvas.height * 0.42);
+    ctx.font = `${Math.max(16, (portrait ? 18 : 26) * s)}px Arial`;
+    ctx.fillText(`Poeng: ${gameState.score}`, canvas.width / 2, canvas.height * (portrait ? 0.30 : 0.42));
 
     // Next level preview
     const nextThemeIndex = Math.min(gameState.level, LEVEL_THEMES.length - 1);
@@ -593,18 +614,18 @@ function drawLevelComplete() {
     const nextLevel = LEVELS[Math.min(gameState.level, LEVELS.length - 1)];
 
     ctx.fillStyle = '#87CEEB';
-    ctx.font = `${Math.max(14, 20 * s)}px Arial`;
-    ctx.fillText(`Neste: Nivå ${gameState.level + 1} - ${nextTheme.name}`, canvas.width / 2, canvas.height * 0.52);
-    ctx.font = `${Math.max(12, 16 * s)}px Arial`;
+    ctx.font = `${Math.max(12, (portrait ? 14 : 20) * s)}px Arial`;
+    ctx.fillText(`Neste: Nivå ${gameState.level + 1} - ${nextTheme.name}`, canvas.width / 2, canvas.height * (portrait ? 0.40 : 0.52));
+    ctx.font = `${Math.max(11, (portrait ? 12 : 16) * s)}px Arial`;
     ctx.fillStyle = '#FFB6C1';
-    ctx.fillText(`${nextLevel.trollCount} troll`, canvas.width / 2, canvas.height * 0.58);
+    ctx.fillText(`${nextLevel.trollCount} troll`, canvas.width / 2, canvas.height * (portrait ? 0.45 : 0.58));
 
     // Next level prompt
-    ctx.font = `bold ${Math.max(18, 22 * s)}px Arial`;
+    ctx.font = `bold ${Math.max(16, (portrait ? 16 : 22) * s)}px Arial`;
     ctx.fillStyle = '#4CAF50';
     const pulse = Math.sin(Date.now() / 300) * 0.3 + 0.7;
     ctx.globalAlpha = pulse;
-    ctx.fillText(touch.isMobile ? 'Trykk for å fortsette' : 'Trykk SPACE for å fortsette', canvas.width / 2, canvas.height * 0.72);
+    ctx.fillText('Trykk for å fortsette', canvas.width / 2, canvas.height * (portrait ? 0.55 : 0.72));
     ctx.globalAlpha = 1;
 
     ctx.shadowBlur = 0;

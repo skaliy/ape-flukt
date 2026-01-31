@@ -78,11 +78,12 @@ gameCanvas.addEventListener('mouseenter', (e) => {
 // Helper function to get sprint button zone size (synced with drawTouchControls)
 function getSprintZoneSize() {
     const s = window.gameScale || 1;
-    const mobileBoost = 1.3;
-    const sprintRadius = 50 * s * mobileBoost;
-    const sprintMargin = 20 * s;
+    const isPortrait = window.isPortraitMode || false;
+    const mobileBoost = isPortrait ? 1.6 : 1.3;
+    const sprintRadius = (isPortrait ? 45 : 50) * s * mobileBoost;
+    const sprintMargin = 15 * s;
     // Make touch zone slightly larger than visual button for easier tapping
-    return (sprintRadius + sprintMargin) * 1.2;
+    return (sprintRadius + sprintMargin) * 1.3;
 }
 
 // Touch events (mobile)
