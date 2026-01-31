@@ -151,7 +151,7 @@ class Troll {
         this.frozenTimer = duration; // 3 seconds at 60fps
     }
 
-    update(monkey, canvas) {
+    update(monkey, canvas, trees = []) {
         // Handle frozen state
         if (this.frozenTimer > 0) {
             this.frozenTimer--;
@@ -165,19 +165,62 @@ class Troll {
         const predictedY = monkey.y + monkey.vy * this.predictionFactor;
 
         // Calculate direction to predicted position
-        const dx = predictedX - this.x;
-        const dy = predictedY - this.y;
+        let dx = predictedX - this.x;
+        let dy = predictedY - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Normalize and apply speed
+        // Normalize direction
         if (distance > 0) {
-            this.vx = (dx / distance) * this.speed;
-            this.vy = (dy / distance) * this.speed;
+            dx = dx / distance;
+            dy = dy / distance;
         }
+
+        // Tree avoidance - steer around trees
+        for (const tree of trees) {
+            const treeDx = this.x - tree.x;
+            const treeDy = this.y - tree.y;
+            const treeDist = Math.sqrt(treeDx * treeDx + treeDy * treeDy);
+            const avoidRadius = tree.radius + this.radius + 20 * (window.gameScale || 1);
+
+            if (treeDist < avoidRadius && treeDist > 0) {
+                // Push away from tree
+                const pushStrength = (avoidRadius - treeDist) / avoidRadius;
+                const pushX = (treeDx / treeDist) * pushStrength * 1.5;
+                const pushY = (treeDy / treeDist) * pushStrength * 1.5;
+                dx += pushX;
+                dy += pushY;
+
+                // Re-normalize
+                const newDist = Math.sqrt(dx * dx + dy * dy);
+                if (newDist > 0) {
+                    dx = dx / newDist;
+                    dy = dy / newDist;
+                }
+            }
+        }
+
+        // Apply speed
+        this.vx = dx * this.speed;
+        this.vy = dy * this.speed;
 
         // Update position
         this.x += this.vx;
         this.y += this.vy;
+
+        // Hard collision with trees - prevent overlap
+        for (const tree of trees) {
+            const treeDx = this.x - tree.x;
+            const treeDy = this.y - tree.y;
+            const treeDist = Math.sqrt(treeDx * treeDx + treeDy * treeDy);
+            const minDist = tree.radius + this.radius;
+
+            if (treeDist < minDist && treeDist > 0) {
+                // Push out of tree
+                const overlap = minDist - treeDist;
+                this.x += (treeDx / treeDist) * overlap;
+                this.y += (treeDy / treeDist) * overlap;
+            }
+        }
 
         // Keep in bounds
         this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
@@ -412,6 +455,62 @@ class FreezeTrap {
             ctx.fillText('🧊', this.x, this.y);
 
             ctx.shadowBlur = 0;
+        }
+    }
+}
+
+// Tree obstacle - blocks trolls but monkey can jump over
+class Tree {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.baseRadius = 30;
+        this.emoji = Math.random() > 0.5 ? '🌲' : '🌳';
+        this.swayOffset = Math.random() * Math.PI * 2;
+    }
+
+    get radius() {
+        return this.baseRadius * (window.gameScale || 1);
+    }
+
+    update() {
+        this.swayOffset += 0.02;
+    }
+
+    draw(ctx, monkey = null) {
+        const s = window.gameScale || 1;
+
+        // Subtle sway animation
+        const sway = Math.sin(this.swayOffset) * 2 * s;
+
+        // Draw tree shadow
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(this.x + 5 * s, this.y + this.radius * 0.8, this.radius * 0.7, this.radius * 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Draw tree
+        ctx.font = `${this.radius * 2.2}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.emoji, this.x + sway, this.y);
+
+        // If monkey is near/over the tree, show jump effect
+        if (monkey) {
+            const dx = monkey.x - this.x;
+            const dy = monkey.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < this.radius + monkey.radius + 10 * s) {
+                // Monkey shadow below tree (monkey is jumping over)
+                ctx.globalAlpha = 0.2;
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.ellipse(monkey.x, this.y + this.radius * 0.5, monkey.radius * 0.6, monkey.radius * 0.25, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
         }
     }
 }

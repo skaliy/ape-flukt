@@ -75,12 +75,12 @@ window.gameScale = gameScale;
 
 // Level configuration (slower trolls)
 const LEVELS = [
-    { trollCount: 1, trollSpeed: 1.3, prediction: 0 },
-    { trollCount: 1, trollSpeed: 1.5, prediction: 5 },
-    { trollCount: 2, trollSpeed: 1.6, prediction: 8 },
-    { trollCount: 2, trollSpeed: 1.8, prediction: 10 },
-    { trollCount: 3, trollSpeed: 1.9, prediction: 12 },
-    { trollCount: 3, trollSpeed: 2.1, prediction: 15 },
+    { trollCount: 1, trollSpeed: 1.3, prediction: 0, treeCount: 3 },
+    { trollCount: 1, trollSpeed: 1.5, prediction: 5, treeCount: 3 },
+    { trollCount: 2, trollSpeed: 1.6, prediction: 8, treeCount: 4 },
+    { trollCount: 2, trollSpeed: 1.8, prediction: 10, treeCount: 4 },
+    { trollCount: 3, trollSpeed: 1.9, prediction: 12, treeCount: 4 },
+    { trollCount: 3, trollSpeed: 2.1, prediction: 15, treeCount: 4 },
 ];
 
 // Level themes with unique backgrounds
@@ -118,6 +118,7 @@ const gameState = {
 let monkey = null;
 let trolls = [];
 let bananas = [];
+let trees = [];
 
 // Initialize game objects
 function initGame() {
@@ -146,10 +147,27 @@ function loadLevel(levelNum) {
         trolls.push(troll);
     }
 
-    // Create bananas (they will avoid spawning near trolls)
+    // Create trees as obstacles (trolls go around, monkey jumps over)
+    trees = [];
+    const margin = 100 * s;
+    const groundHeight = 40 * s;
+    const centerClearRadius = 120 * s; // Keep area around spawn clear
+    for (let i = 0; i < level.treeCount; i++) {
+        let attempts = 0;
+        let treeX, treeY;
+        do {
+            treeX = Math.random() * (canvas.width - margin * 2) + margin;
+            treeY = Math.random() * (canvas.height - margin - groundHeight - margin) + margin;
+            attempts++;
+        } while (attempts < 50 && isTooCloseToEntities(treeX, treeY, [...trees, { x: canvas.width / 2, y: canvas.height / 2, radius: centerClearRadius }], 80 * s));
+
+        trees.push(new Tree(treeX, treeY));
+    }
+
+    // Create bananas (they will avoid spawning near trolls and trees)
     bananas = [];
     for (let i = 0; i < 4; i++) {
-        const banana = new Banana(canvas, [...trolls, monkey]);
+        const banana = new Banana(canvas, [...trolls, monkey, ...trees]);
         bananas.push(banana);
     }
 
@@ -160,6 +178,22 @@ function loadLevel(levelNum) {
     gameState.screenShake = 0;
     gameState.freezeTraps = [];
     gameState.trapsRemaining = 3;
+}
+
+// Helper to check if position is too close to other entities
+function isTooCloseToEntities(x, y, entities, minDistance) {
+    for (const entity of entities) {
+        if (entity && entity.x !== undefined) {
+            const dx = x - entity.x;
+            const dy = y - entity.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const entityRadius = entity.radius || 0;
+            if (distance < minDistance + entityRadius) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 function startGame() {
@@ -272,8 +306,11 @@ function update(dt) {
         // Update monkey (pass touch input for mobile)
         monkey.update(keys, canvas, mouse, touch);
 
-        // Update trolls
-        trolls.forEach(troll => troll.update(monkey, canvas));
+        // Update trolls (pass trees so they avoid them)
+        trolls.forEach(troll => troll.update(monkey, canvas, trees));
+
+        // Update trees (animation)
+        trees.forEach(tree => tree.update());
 
         // Update bananas
         bananas.forEach(banana => banana.update());
@@ -291,7 +328,7 @@ function update(dt) {
                 createParticles(banana.x, banana.y, '✨', 8);
                 createParticles(banana.x, banana.y, '🍌', 3);
                 // Update entities reference and collect
-                banana.setEntities([...trolls, monkey]);
+                banana.setEntities([...trolls, monkey, ...trees]);
                 banana.collect();
                 gameState.score += 100;
                 gameState.bananasCollected++;
@@ -409,10 +446,6 @@ function drawTouchControls() {
 function drawUI() {
     const s = gameScale;
 
-    // Get theme name
-    const themeIndex = Math.min(gameState.level - 1, LEVEL_THEMES.length - 1);
-    const theme = LEVEL_THEMES[themeIndex];
-
     // Score
     ctx.fillStyle = 'white';
     ctx.font = `bold ${Math.max(18, 24 * s)}px Arial`;
@@ -420,10 +453,6 @@ function drawUI() {
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
     ctx.shadowBlur = 4 * s;
     ctx.fillText(`⭐ ${gameState.score}`, 15 * s, 35 * s);
-
-    // Level with theme name
-    ctx.textAlign = 'center';
-    ctx.fillText(`Nivå ${gameState.level}: ${theme.name}`, canvas.width / 2, 35 * s);
 
     // Banana progress bar
     ctx.shadowBlur = 0;
@@ -609,6 +638,7 @@ function drawLevelComplete() {
 
     // Draw game objects faded
     ctx.globalAlpha = 0.3;
+    trees.forEach(tree => tree.draw(ctx, null));
     bananas.forEach(b => b.draw(ctx));
     monkey.draw(ctx);
     trolls.forEach(t => t.draw(ctx, null));
@@ -680,6 +710,7 @@ function drawGameOver() {
 
     // Draw game objects faded
     ctx.globalAlpha = 0.3;
+    trees.forEach(tree => tree.draw(ctx, null));
     bananas.forEach(b => b.draw(ctx));
     monkey.draw(ctx);
     trolls.forEach(t => t.draw(ctx, null));
@@ -850,6 +881,9 @@ function drawPlaying() {
     drawBackground();
 
     const s = gameScale;
+
+    // Draw trees (behind characters)
+    trees.forEach(tree => tree.draw(ctx, monkey));
 
     // Draw bananas
     bananas.forEach(b => b.draw(ctx));
