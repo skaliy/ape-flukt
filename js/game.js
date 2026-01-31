@@ -758,43 +758,66 @@ function drawGameOver() {
             ctx.fillText('Skriv navn her...', canvas.width / 2, boxY + boxHeight * 0.62);
         }
 
-        // Buttons - larger and side by side
-        const btnWidth = 120 * s;
-        const btnHeight = 44 * s;
-        const btnGap = 16 * s;
+        // Buttons - large and prominent
+        const btnWidth = 140 * s;
+        const btnHeight = 52 * s;
+        const btnGap = 20 * s;
         const totalWidth = btnWidth * 2 + btnGap;
         const startBtnX = (canvas.width - totalWidth) / 2;
         const btnRowY = canvas.height * 0.62;
+        const btnRadius = 12 * s;
 
-        // Submit button - green, prominent
+        // Submit button - green with glow effect
+        ctx.shadowColor = 'rgba(76, 175, 80, 0.6)';
+        ctx.shadowBlur = 15 * s;
         ctx.fillStyle = '#4CAF50';
         ctx.beginPath();
-        ctx.roundRect(startBtnX, btnRowY, btnWidth, btnHeight, 8 * s);
+        ctx.roundRect(startBtnX, btnRowY, btnWidth, btnHeight, btnRadius);
         ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.font = `bold ${Math.max(14, 16 * s)}px Arial`;
-        ctx.fillText('✓ Send', startBtnX + btnWidth / 2, btnRowY + btnHeight * 0.62);
+        ctx.shadowBlur = 0;
 
-        // Skip button - gray
-        const skipBtnX = startBtnX + btnWidth + btnGap;
-        ctx.fillStyle = '#666';
-        ctx.beginPath();
-        ctx.roundRect(skipBtnX, btnRowY, btnWidth, btnHeight, 8 * s);
-        ctx.fill();
+        // Submit button border
+        ctx.strokeStyle = '#66BB6A';
+        ctx.lineWidth = 3 * s;
+        ctx.stroke();
+
+        // Submit button text
         ctx.fillStyle = 'white';
-        ctx.fillText('✗ Hopp over', skipBtnX + btnWidth / 2, btnRowY + btnHeight * 0.62);
+        ctx.font = `bold ${Math.max(16, 20 * s)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        ctx.shadowBlur = 2 * s;
+        ctx.fillText('✓ Send', startBtnX + btnWidth / 2, btnRowY + btnHeight * 0.6);
+        ctx.shadowBlur = 0;
+
+        // Skip button - subtle but visible
+        const skipBtnX = startBtnX + btnWidth + btnGap;
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+        ctx.beginPath();
+        ctx.roundRect(skipBtnX, btnRowY, btnWidth, btnHeight, btnRadius);
+        ctx.fill();
+
+        // Skip button border
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 2 * s;
+        ctx.stroke();
+
+        // Skip button text
+        ctx.fillStyle = '#ddd';
+        ctx.font = `bold ${Math.max(14, 18 * s)}px Arial`;
+        ctx.fillText('Hopp over', skipBtnX + btnWidth / 2, btnRowY + btnHeight * 0.6);
 
         // Store button positions for click detection
         gameState.submitBtn = { x: startBtnX, y: btnRowY, width: btnWidth, height: btnHeight };
         gameState.skipBtn = { x: skipBtnX, y: btnRowY, width: btnWidth, height: btnHeight };
 
-        // Instructions
-        ctx.fillStyle = '#aaa';
-        ctx.font = `${Math.max(10, 12 * s)}px Arial`;
+        // Instructions - simplified
+        ctx.fillStyle = '#bbb';
+        ctx.font = `${Math.max(11, 13 * s)}px Arial`;
         if (touch.isMobile) {
-            ctx.fillText('Trykk i boksen for å skrive navn', canvas.width / 2, canvas.height * 0.76);
+            ctx.fillText('Trykk på tekstfeltet for å skrive', canvas.width / 2, canvas.height * 0.78);
         } else {
-            ctx.fillText('Skriv navn og trykk ENTER, eller ESC for å hoppe over', canvas.width / 2, canvas.height * 0.76);
+            ctx.fillText('Skriv navn og trykk ENTER', canvas.width / 2, canvas.height * 0.78);
         }
     } else if (gameState.submittedRank) {
         // Show rank after submission
