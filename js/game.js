@@ -9,27 +9,48 @@ const BASE_HEIGHT = 750;
 
 function resizeCanvas() {
     const container = document.getElementById('gameContainer');
-    const availableWidth = container.clientWidth - 10;
-    const availableHeight = window.innerHeight - 20;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        || ('ontouchstart' in window)
+        || (navigator.maxTouchPoints > 0);
+
+    // Use nearly full screen on mobile
+    const padding = isMobile ? 4 : 10;
+    const availableWidth = container.clientWidth - padding;
+    const availableHeight = window.innerHeight - padding;
     const aspectRatio = BASE_WIDTH / BASE_HEIGHT;
 
-    let width = availableWidth;
-    let height = width / aspectRatio;
+    let width, height;
 
-    // Constrain by height if needed
-    if (height > availableHeight) {
-        height = availableHeight;
-        width = height * aspectRatio;
+    if (isMobile) {
+        // On mobile, prioritize filling the screen
+        // Try width first
+        width = availableWidth;
+        height = width / aspectRatio;
+
+        // If height is too big, constrain by height instead
+        if (height > availableHeight) {
+            height = availableHeight;
+            width = height * aspectRatio;
+        }
+    } else {
+        // Desktop: maintain aspect ratio with some margin
+        width = Math.min(availableWidth, BASE_WIDTH);
+        height = width / aspectRatio;
+
+        if (height > availableHeight) {
+            height = availableHeight;
+            width = height * aspectRatio;
+        }
     }
 
     // Minimum size for playability
-    width = Math.max(width, 320);
+    width = Math.max(width, 300);
     height = width / aspectRatio;
 
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = Math.floor(width);
+    canvas.height = Math.floor(height);
     gameScale = width / BASE_WIDTH;
-    window.gameScale = gameScale; // Update global reference
+    window.gameScale = gameScale;
 }
 
 resizeCanvas();

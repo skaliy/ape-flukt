@@ -62,36 +62,55 @@
             padding: 5px;
         }
 
-        /* Hide info text on mobile */
+        /* Mobile optimization - fill screen */
         @media (max-width: 768px) {
             .game-info {
                 display: none;
             }
 
             #gameContainer {
-                padding: 5px;
-                gap: 5px;
+                padding: 2px;
+                gap: 0;
+                max-width: 100%;
+                justify-content: center;
             }
 
             #gameCanvas {
                 border-width: 2px;
-                border-radius: 8px;
-                max-height: calc(100vh - 20px);
+                border-radius: 6px;
+                max-width: 100%;
+                max-height: calc(100vh - 4px);
+                width: auto;
+                height: auto;
             }
         }
 
         /* Landscape mobile optimization */
         @media (max-height: 500px) {
             #gameContainer {
-                padding: 2px;
+                padding: 0;
             }
 
             #gameCanvas {
-                max-height: calc(100vh - 10px);
+                border-width: 1px;
+                border-radius: 4px;
+                max-height: 100vh;
             }
 
             .game-info {
                 display: none;
+            }
+        }
+
+        /* Extra small screens */
+        @media (max-width: 400px) {
+            #gameContainer {
+                padding: 0;
+            }
+
+            #gameCanvas {
+                border-width: 1px;
+                border-radius: 4px;
             }
         }
     </style>
