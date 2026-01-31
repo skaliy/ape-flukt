@@ -381,36 +381,6 @@ function drawTouchControls() {
 
     ctx.save();
 
-    // Draw joystick base (where touch started)
-    if (touch.joystickActive) {
-        const joystickRadius = 55 * s * mobileBoost;
-        const knobRadius = 28 * s * mobileBoost;
-        const innerRadius = 10 * s * mobileBoost;
-        const knobDistance = 40 * s * mobileBoost;
-
-        // Outer circle
-        ctx.globalAlpha = 0.3;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(touch.startX, touch.startY, joystickRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Direction indicator - changes color when sprinting (joystick fully pushed)
-        ctx.globalAlpha = 0.6;
-        ctx.fillStyle = touch.isSprinting ? '#FF5722' : '#4CAF50';
-        const knobX = touch.startX + touch.joystickX * knobDistance;
-        const knobY = touch.startY + touch.joystickY * knobDistance;
-        ctx.beginPath();
-        ctx.arc(knobX, knobY, knobRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Inner dot
-        ctx.globalAlpha = 0.8;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(knobX, knobY, innerRadius, 0, Math.PI * 2);
-        ctx.fill();
-    }
 
     // Mobile hint text (show briefly at start)
     if (gameState.time < 3) {
